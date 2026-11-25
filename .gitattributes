@@ -1,0 +1,4 @@
+# Corpus files are identified and de-duplicated by the hash of their bytes, so git
+# must never rewrite their line endings.
+data/sample_documents/** -text
+data/benchmarks/** -text

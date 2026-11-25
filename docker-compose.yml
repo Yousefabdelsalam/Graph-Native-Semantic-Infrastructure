@@ -1,0 +1,47 @@
+name: semantica-lab
+
+services:
+  neo4j:
+    image: neo4j:5.26-community
+    container_name: semantica-lab-neo4j
+    restart: unless-stopped
+    ports:
+      # Bound to localhost only: this is a local lab, not a shared server.
+      - "127.0.0.1:7474:7474"
+      - "127.0.0.1:7687:7687"
+    environment:
+      NEO4J_AUTH: neo4j/${NEO4J_PASSWORD:?Set NEO4J_PASSWORD in .env}
+      NEO4J_server_memory_heap_initial__size: 256m
+      NEO4J_server_memory_heap_max__size: 512m
+      NEO4J_server_memory_pagecache_size: 256m
+    volumes:
+      - neo4j_data:/data
+      - neo4j_logs:/logs
+    healthcheck: &neo4j-health
+      # An HTTP probe: cypher-shell would start a new JVM on every check.
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:7474 || exit 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 12
+      start_period: 20s
+
+  # Disposable instance used only by integration tests, so tests never wipe
+  # the graph you are exploring.  Start with: docker compose --profile test up -d
+  neo4j-test:
+    image: neo4j:5.26-community
+    container_name: semantica-lab-neo4j-test
+    profiles: ["test"]
+    ports:
+      - "127.0.0.1:7688:7687"
+    environment:
+      NEO4J_AUTH: neo4j/${NEO4J_PASSWORD:?Set NEO4J_PASSWORD in .env}
+      NEO4J_server_memory_heap_initial__size: 256m
+      NEO4J_server_memory_heap_max__size: 512m
+      NEO4J_server_memory_pagecache_size: 128m
+    tmpfs:
+      - /data
+    healthcheck: *neo4j-health
+
+volumes:
+  neo4j_data:
+  neo4j_logs:

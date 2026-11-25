@@ -1,0 +1,14 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.env
+
+# Generated runtime state (sample_documents are versioned)
+data/uploads/
+data/vector_index/
+data/exports/
+data/models/
+data/*.db
+data/*.db-*
+*.log

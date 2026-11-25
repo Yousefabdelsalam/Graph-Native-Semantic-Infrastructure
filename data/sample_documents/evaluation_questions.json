@@ -1,0 +1,116 @@
+{
+  "description": "Manually defined questions and expected answers. 'expected' lists strings that a correct answer must mention (any one alias inside an inner list counts). 'sources' lists the documents that support the answer.",
+  "questions": [
+    {
+      "id": "q01",
+      "category": "direct",
+      "question": "Which products were developed by Acme AI?",
+      "expected": [["VisionCore"], ["DocuMind"], ["FleetSense"]],
+      "sources": ["02_product_catalogue.pdf"]
+    },
+    {
+      "id": "q02",
+      "category": "multi_hop",
+      "question": "Who leads the team responsible for VisionCore?",
+      "expected": [["Sarah Chen"]],
+      "sources": ["01_company_overview.txt", "02_product_catalogue.pdf"],
+      "notes": "VisionCore <-OWNS- VisionCore Team <-LEADS- Sarah Chen. The legacy wiki contradicts this with David Okafor."
+    },
+    {
+      "id": "q03",
+      "category": "direct",
+      "question": "Which technologies does VisionCore depend on?",
+      "expected": [["PostgreSQL", "Postgres"], ["Redis"]],
+      "sources": ["03_technology_stack.docx"]
+    },
+    {
+      "id": "q04",
+      "category": "direct",
+      "question": "Which projects use PostgreSQL?",
+      "expected": [["Project Atlas"], ["Project Cobalt"]],
+      "sources": ["04_project_register.html"]
+    },
+    {
+      "id": "q05",
+      "category": "multi_hop",
+      "question": "Who works with Sarah?",
+      "expected": [["Tom Nguyen"], ["Priya Raman"], ["David Okafor"]],
+      "sources": ["01_company_overview.txt", "04_project_register.html", "05_integrations.txt"]
+    },
+    {
+      "id": "q06",
+      "category": "multi_hop",
+      "question": "Which products are connected to the same technology?",
+      "expected": [["VisionCore"], ["DocuMind"], ["FleetSense"]],
+      "sources": ["03_technology_stack.docx"]
+    },
+    {
+      "id": "q07",
+      "category": "direct",
+      "question": "What is the relationship between Acme AI and VisionCore?",
+      "expected": [["developed", "DEVELOPED"], ["VisionCore"]],
+      "sources": ["02_product_catalogue.pdf", "06_legacy_wiki.txt"]
+    },
+    {
+      "id": "q08",
+      "category": "conflict",
+      "question": "Which facts about VisionCore have conflicting sources?",
+      "expected": [["2023"], ["2024"], ["MongoDB"], ["PostgreSQL", "Postgres"]],
+      "sources": ["02_product_catalogue.pdf", "03_technology_stack.docx", "06_legacy_wiki.txt"]
+    },
+    {
+      "id": "q09",
+      "category": "provenance",
+      "question": "Where did the information about Sarah's role leading the VisionCore Team come from?",
+      "expected": [["01_company_overview.txt"]],
+      "sources": ["01_company_overview.txt"]
+    },
+    {
+      "id": "q10",
+      "category": "multi_hop",
+      "question": "How is Northwind Robotics connected to PostgreSQL?",
+      "expected": [["FleetSense"], ["VisionCore"]],
+      "sources": ["05_integrations.txt", "03_technology_stack.docx"],
+      "notes": "Northwind Robotics -USES-> FleetSense -INTEGRATES_WITH-> VisionCore -DEPENDS_ON-> PostgreSQL."
+    },
+    {
+      "id": "q11",
+      "category": "multi_hop",
+      "question": "Who leads the team that owns the project which depends on PostgreSQL?",
+      "expected": [["Priya Raman"]],
+      "sources": ["04_project_register.html", "03_technology_stack.docx"],
+      "notes": "Project Cobalt -DEPENDS_ON-> PostgreSQL; Platform Team -OWNS-> Project Cobalt; Priya Raman leads it since 2025."
+    },
+    {
+      "id": "q12",
+      "category": "multi_hop",
+      "question": "Which technologies does DocuMind depend on indirectly through VisionCore?",
+      "expected": [["PostgreSQL", "Postgres"], ["Redis"]],
+      "sources": ["05_integrations.txt", "03_technology_stack.docx"]
+    },
+    {
+      "id": "q13",
+      "category": "direct",
+      "question": "Which organization collaborates with Acme AI?",
+      "expected": [["Northwind Robotics"]],
+      "sources": ["05_integrations.txt"]
+    },
+    {
+      "id": "q14",
+      "category": "temporal",
+      "question": "Who led the Platform Team in 2024?",
+      "expected": [["Marcus Webb"]],
+      "sources": ["03_technology_stack.docx"],
+      "excluded": ["Priya Raman"],
+      "notes": "Priya Raman leads the team only from 2025, so mentioning her is temporally wrong evidence."
+    },
+    {
+      "id": "q15",
+      "category": "unanswerable",
+      "question": "What is the annual revenue of Globex Corporation?",
+      "expected": [],
+      "sources": [],
+      "notes": "Nothing in the corpus answers this; a good retriever should report insufficient evidence."
+    }
+  ]
+}

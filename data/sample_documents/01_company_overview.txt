@@ -1,0 +1,17 @@
+Acme AI Company Overview
+
+Acme AI is a technology company that builds applied machine learning products.
+
+Employees
+Sarah Chen works for Acme AI. David Okafor works for Acme AI.
+Priya Raman works for Acme AI. Marcus Webb works for Acme AI.
+Elena Rossi works for Acme AI. Tom Nguyen works for Acme AI.
+
+Teams
+Dr. Sarah Chen leads the VisionCore Team. Elena Rossi leads the Document Intelligence Team.
+The VisionCore Team is part of Acme AI. The Platform Team is part of Acme AI.
+The Document Intelligence Team is part of Acme AI.
+Tom Nguyen is a member of the VisionCore Team.
+Sarah collaborates with Tom Nguyen on model evaluation.
+
+Her deputy joined last spring and now reviews every release.

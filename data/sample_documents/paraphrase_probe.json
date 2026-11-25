@@ -1,0 +1,19 @@
+{
+  "description": "Generalisation probe: the same kinds of facts as the corpus, worded differently. The pattern pack was not adjusted to these sentences. Each sentence is extracted on its own.",
+  "cases": [
+    {"sentence": "VisionCore was built by Acme AI.", "facts": [["Acme AI", "DEVELOPED", "VisionCore"]]},
+    {"sentence": "Acme AI is the company behind DocuMind.", "facts": [["Acme AI", "DEVELOPED", "DocuMind"]]},
+    {"sentence": "Sarah Chen is the lead of the VisionCore Team.", "facts": [["Sarah Chen", "LEADS", "VisionCore Team"]]},
+    {"sentence": "The Platform Team is headed by Priya Raman.", "facts": [["Priya Raman", "LEADS", "Platform Team"]]},
+    {"sentence": "Elena Rossi, who joined Acme AI in 2022, runs the Document Intelligence Team.", "facts": [["Elena Rossi", "LEADS", "Document Intelligence Team"]]},
+    {"sentence": "FleetSense stores its state in Redis.", "facts": [["FleetSense", "USES", "Redis"]]},
+    {"sentence": "VisionCore cannot start without PostgreSQL.", "facts": [["VisionCore", "DEPENDS_ON", "PostgreSQL"]]},
+    {"sentence": "DocuMind relies on FastAPI.", "facts": [["DocuMind", "USES", "FastAPI"]]},
+    {"sentence": "Both Project Atlas and Project Beacon use Redis.", "facts": [["Project Atlas", "USES", "Redis"], ["Project Beacon", "USES", "Redis"]]},
+    {"sentence": "Tom Nguyen belongs to the VisionCore Team.", "facts": [["Tom Nguyen", "PART_OF", "VisionCore Team"]]},
+    {"sentence": "David Okafor and Priya Raman work together on Project Cobalt.", "facts": [["David Okafor", "COLLABORATES_WITH", "Priya Raman"]]},
+    {"sentence": "Maria Gomez works at Globex Labs.", "facts": [["Maria Gomez", "WORKS_FOR", "Globex Labs"]]},
+    {"sentence": "StreamHub depends on Kafka.", "facts": [["StreamHub", "DEPENDS_ON", "Kafka"]]},
+    {"sentence": "The billing service depends on MySQL.", "facts": [["billing service", "DEPENDS_ON", "MySQL"]]}
+  ]
+}

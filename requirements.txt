@@ -1,0 +1,31 @@
+# Tested on Windows 11, Python 3.12.  Semantica supports Python 3.10-3.13;
+# this project needs 3.11+.  requirements.lock.txt pins the full tree.
+
+# Semantica and the extras this lab uses
+semantica[graph-neo4j,vectorstore-faiss,parse-pdf,documents,shacl,llm-groq,graph-embeddings]==0.7.0
+
+# Local embeddings.  Deliberately not the "embeddings-local" extra: that also
+# installs PyTorch, which Semantica then imports at start-up although unused here.
+fastembed==0.9.1
+onnxruntime==1.32.0
+
+# Visualisation (the parts of the "viz" extra that KGVisualizer needs)
+plotly==7.2.0
+matplotlib==3.11.2
+
+# Application
+streamlit==1.67.0
+SQLAlchemy==2.1.9
+pydantic==2.14.4
+python-dotenv==1.2.4
+
+# Verified versions of Semantica's optional dependencies
+neo4j==6.4.1
+faiss-cpu==1.16.0
+pdfplumber==0.11.11
+python-docx==1.2.0
+beautifulsoup4==4.15.0
+pyshacl==0.40.2
+rdflib==7.6.0
+groq==1.7.0
+gensim==4.4.0

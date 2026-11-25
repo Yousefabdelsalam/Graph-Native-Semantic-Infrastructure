@@ -1,0 +1,8 @@
+Acme AI Integrations and Technical Relationships
+
+DocuMind depends on VisionCore for optical character recognition.
+FleetSense integrates with VisionCore.
+Project Atlas depends on VisionCore.
+Acme Artificial Intelligence collaborates with Northwind Robotics Inc. on warehouse automation.
+Northwind Robotics Inc. uses FleetSense.
+Sarah Chen collaborates with David Okafor on the roadmap.

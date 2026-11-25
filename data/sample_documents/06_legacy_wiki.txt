@@ -1,0 +1,8 @@
+Archived Engineering Wiki
+
+This page was imported from an old wiki and may be out of date.
+
+Acme AI Inc. developed VisionCore.
+VisionCore was launched in 2024.
+David Okafor leads the VisionCore Team.
+The primary database of VisionCore is MongoDB.
