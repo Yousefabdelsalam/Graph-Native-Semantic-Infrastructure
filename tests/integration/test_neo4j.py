@@ -44,6 +44,19 @@ def test_round_trip_preserves_the_graph(repository, graph) -> None:
     assert _comparable(repository.load()) == _comparable(graph)
 
 
+def test_evidence_status_is_persisted_and_updated(repository, graph) -> None:
+    repository.sync(graph)
+    changed = copy.deepcopy(graph)
+    edge = changed["relationships"][0]
+    edge["support_status"] = "inferred"
+    edge["evidence_support"] = ["inferred"] * len(edge["provenance_ids"])
+    assert repository.sync(changed).relationships_replaced == 1
+    stored = {r["id"]: r for r in repository.load()["relationships"]}
+    assert stored[edge["id"]]["support_status"] == "inferred"
+    assert stored[edge["id"]]["evidence_support"] == edge["evidence_support"]
+    assert sum(r["support_status"] == "supported" for r in stored.values()) == len(stored) - 1
+
+
 def test_second_sync_changes_nothing(repository, graph) -> None:
     repository.sync(graph)
     assert set(repository.sync(graph).as_dict().values()) == {0}

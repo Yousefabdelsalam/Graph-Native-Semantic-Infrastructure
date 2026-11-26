@@ -94,5 +94,5 @@ def test_triplets_come_from_semantica(pipeline) -> None:
 
 
 def test_llm_method_requires_a_key(settings) -> None:
-    with pytest.raises(ExtractionError, match="GROQ_API_KEY"):
+    with pytest.raises(ExtractionError, match="OPENAI_API_KEY"):
         ExtractionPipeline(settings, "llm")

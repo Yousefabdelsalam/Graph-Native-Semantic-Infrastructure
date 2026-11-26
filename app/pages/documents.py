@@ -17,12 +17,15 @@ methods = [m for m in EXTRACTION_METHODS if m != "llm" or lab.settings.llm_avail
 method = st.selectbox(
     "Extraction method",
     methods,
-    index=methods.index("regex"),
+    index=methods.index("llm" if "llm" in methods else "regex"),
     format_func=lambda m: EXTRACTION_METHODS[m],
-    help="LLM extraction appears when GROQ_API_KEY is set.",
+    help="AI extraction appears when OPENAI_API_KEY is set in .env (restart the app).",
 )
 if method == "llm":
-    st.warning("LLM extraction sends document text to Groq.")
+    st.warning(
+        f"AI extraction sends the document text to OpenAI (model {lab.settings.openai_model}) "
+        "and is billed to your account."
+    )
 
 uploads = st.file_uploader(
     f"Upload documents (max {lab.settings.max_upload_mb} MB each)",

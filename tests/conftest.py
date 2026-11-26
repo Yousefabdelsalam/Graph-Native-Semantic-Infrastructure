@@ -19,7 +19,7 @@ from tests.fakes import InMemoryRepository
 
 
 def make_settings(data_dir: Path) -> Settings:
-    return load_settings(data_dir=data_dir, groq_api_key=SecretStr(""))
+    return load_settings(data_dir=data_dir, openai_api_key=SecretStr(""))
 
 
 def make_document(text: str, document_id: int = 1, filename: str = "test.txt") -> ParsedDocument:

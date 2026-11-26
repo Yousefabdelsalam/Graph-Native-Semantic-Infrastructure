@@ -105,9 +105,9 @@ options_row = st.columns([1, 1, 2])
 use_date = options_row[0].checkbox("Point in time")
 as_of = options_row[1].date_input("Valid on", date.today(), disabled=not use_date)
 generate = options_row[2].checkbox(
-    "Generate an answer with Groq",
+    "Generate an answer with OpenAI",
     disabled=not lab.settings.llm_available,
-    help="Needs GROQ_API_KEY. Sends the question and evidence to Groq.",
+    help="Needs OPENAI_API_KEY. Sends the question and evidence to OpenAI.",
 )
 
 run, compare = st.columns(2)

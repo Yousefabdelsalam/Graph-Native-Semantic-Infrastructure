@@ -36,7 +36,7 @@ upgrade that changes them will show up in the test run.
 | Embeddings, vectors | `vector_store.VectorStore` + FAISS, FastEmbed | guard against fallback embeddings, cosine conversion |
 | Native GraphRAG | `context.ContextRetriever` | supplying the graph as a dictionary |
 | Graph / hybrid modes | (uses the modules above) | **the query planner and ranking are application code** |
-| Answer generation | `llms.Groq` | grounded prompt, refusal when evidence is insufficient |
+| Answer generation | `OpenAIProvider` (metered subclass) | grounded prompt, refusal when evidence is insufficient |
 | Ontology | `ontology.OntologyEngine` (OWL, SHACL, validation, inference), `export.RDFExporter` | vocabulary definition, union-range correction |
 | Reasoning, time | `reasoning.Reasoner`, `kg.TemporalGraphQuery` | rules, date detection in questions |
 | Decisions | `context.AgentContext` | trace from decision to facts and sources |
@@ -51,7 +51,9 @@ this planner as much as they measure Semantica.
 ## Module notes
 
 ### Ingestion and parsing
-`FileIngestor.ingest_file` returns a `FileObject` with type and size. `PDFParser.parse`
+PDF text comes from the app's [layout reader](../backend/ingestion/layout.py), because
+`PDFParser` returns `pdfplumber`'s plain text (finding 23); `PDFParser` still supplies
+the metadata. `FileIngestor.ingest_file` returns a `FileObject` with type and size. `PDFParser.parse`
 returns `{"pages": [...], "full_text", "metadata"}`; `DOCXParser.parse` returns
 `paragraphs` and `sections`; `HTMLParser.parse` returns an `HTMLData` object, not a
 dictionary like the others.
@@ -73,8 +75,13 @@ point; the patterns live in [patterns.py](../backend/extraction/patterns.py).
 Confidence values from `pattern`/`regex` are constants (0.7 / 0.75). They are stored
 because the library reports them, but they carry no information.
 
-LLM extraction (`method="llm"`, `provider="groq"`) is wired in and selectable when a
-key is present. **It has not been run against the live service in this project.**
+AI extraction uses `extract_entities_llm` / `extract_relations_llm` with a metered
+OpenAI provider registered in Semantica's `provider_registry`
+([provider.py](../backend/llm/provider.py)). Semantica builds the prompts and parses
+the replies; the app chooses the passages, supplies the allowed types (enforced with a
+strict output schema), adds a `Concept` type and five general relations for ordinary
+documents, and locates the supporting statement. It is selectable when a key is
+present. **It has not yet been run against the live service in this project.**
 
 ### Graph construction
 `GraphBuilder(merge_entities=False, resolve_conflicts=False)`. Both are handled
@@ -139,6 +146,14 @@ writes a `Decision` node and `ABOUT` links. It matches entities on their `id` pr
 | 16 | `ConflictResolver` returns a value even for an exact tie | a coin flip presented as a resolution | detects ties and labels them | |
 | 17 | `ContextRetriever` offers no "insufficient evidence" signal | unanswerable questions get confident-looking context | measured as such in the evaluation | |
 | 18 | `EventDetector(method="pattern")` participant lists contain duplicates and stray tokens | not usable as graph facts | shown as exploratory output only | |
+| 19 | `NERExtractor` / `RelationExtractor` with `method="llm"` catch provider errors and fall back to other methods | a failed API call looks like a document with no facts | calls `extract_entities_llm` / `extract_relations_llm` directly; any failure fails the run | 🧪 |
+| 20 | A failing LLM request is retried up to six times per call, on top of the SDK's retries | load multiplies under rate limits | a registered provider sends one request per attempt, at most three | 🧪 |
+| 21 | `OpenAIProvider` discards `response.usage` | no token accounting | the registered provider records it | 🧪 |
+| 22 | `OpenAIProvider` defaults to `gpt-3.5-turbo`, which OpenAI shut down on 2026-10-23 | LLM calls fail unless a model is passed | `OPENAI_MODEL` defaults to `gpt-6-luna` | |
+| 23 | `PDFParser` returns each page's plain text, with no handling of columns, headers or footers | evidence quotes mix unrelated columns; footers become entities | app layout reader on `pdfplumber` | |
+| 24 | `ExtractionValidator.validate_relations` checks confidence, missing ends and self-links, not the source text | unsupported relationships pass validation | app evidence rules (supported / inferred / rejected) | |
+| 25 | `DuplicateDetector` similarity does not separate variants from siblings ("GPT-4"/"GPT-5" 0.85, "REACT FRAMEWORK"/"ReAct" 0.82) and compares within one type only | no threshold is safe | explicit spelling rules, curated aliases; auto-merge stays at 0.93 | |
+| 26 | `EntityNormalizer.normalize_entity` title-cases names ("ReAct" → "React", "AI" → "Ai") | casing information is lost | only `resolve_aliases` is used | |
 
 ## Not explored
 
@@ -159,7 +174,7 @@ ingestors (databases, web, streams).
 | `ContextRetriever` | `gensim` (`graph-embeddings`) | yes |
 | Embeddings | `fastembed`, `onnxruntime` | yes; model downloaded once |
 | Visualisation | `plotly`, `matplotlib` | yes |
-| LLM extraction / answers | `groq` (`llm-groq`) + `GROQ_API_KEY` | optional |
+| AI extraction / answers | `openai` (`llm-openai`) + `OPENAI_API_KEY` | optional |
 
-Messages such as "openai library not installed" or "litellm library not installed" at
+Messages such as "litellm library not installed" at
 start-up come from Semantica probing optional providers and can be ignored.

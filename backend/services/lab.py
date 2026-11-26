@@ -1,10 +1,12 @@
 """The pipeline orchestrator used by the UI, the scripts and the tests.
 
-upload → parse → normalise → extract → resolve / detect conflicts → build graph
-       → Neo4j sync → vector index → provenance
+upload → parse → normalise → extract → validate evidence → resolve / detect
+conflicts → build graph → Neo4j sync → vector index → provenance
 
 Neo4j holds the graph.  Per-document extraction results are kept as JSON
-artifacts so the graph can be re-derived whenever any document changes.
+artifacts so the graph can be re-derived whenever any document changes.  Those
+raw results are never rewritten by a rebuild: the cleaned layout text and the
+evidence verdicts are saved beside them (``layout/`` and ``validation/``).
 """
 
 from __future__ import annotations
@@ -18,6 +20,7 @@ from pathlib import Path
 
 from backend.config import Settings, load_settings
 from backend.extraction.extractor import ExtractionPipeline
+from backend.extraction.validation import ValidationReport, validate
 from backend.graph.builder import AssembledGraph, assemble_graph
 from backend.graph.conflicts import detect_conflicts
 from backend.graph.repository import GraphRepository
@@ -135,11 +138,13 @@ class KnowledgeLab:
         vector = self.vector  # fail early if the embedding model is unavailable
 
         others = [e for e in self._extractions() if e.document_id != document.id]
-        assembled = self._rebuild([*others, extraction])  # Neo4j first: most likely to fail
+        # Neo4j first: most likely to fail
+        assembled, reports = self._rebuild([*others, extraction], {document.id: parsed})
 
         vector.replace_document(document.id, chunks)
         self.provenance.record_document(parsed, document.file_hash)
         self.provenance.record_extraction(extraction)
+        self._record_validation([*others, extraction], reports)
         if previous:
             gone = {f.fact_id for f in previous.facts} - {f.fact_id for f in extraction.facts}
             self.provenance.invalidate(sorted(gone), "No longer extracted after reprocessing")
@@ -152,7 +157,8 @@ class KnowledgeLab:
             self.registry.get(document_id)
             extraction = self.extraction(document_id)
             remaining = [e for e in self._extractions() if e.document_id != document_id]
-            self._rebuild(remaining)
+            _, reports = self._rebuild(remaining)
+            self._record_validation(remaining, reports)
             self.vector.remove_document(document_id)
             if extraction:
                 self.provenance.invalidate(
@@ -160,6 +166,8 @@ class KnowledgeLab:
                 )
             self._extraction_path(document_id).unlink(missing_ok=True)
             (self.settings.exports_dir / f"parsed_{document_id}.json").unlink(missing_ok=True)
+            self._layout_path(document_id).unlink(missing_ok=True)
+            self._validation_path(document_id).unlink(missing_ok=True)
             self.registry.delete(document_id)
 
     def load_sample_data(self, method: str = "regex") -> list[IngestOutcome]:
@@ -176,11 +184,53 @@ class KnowledgeLab:
 
     # ------------------------------------------------------------------- graph
     def rebuild_graph(self) -> AssembledGraph:
+        """Re-derive the graph from stored extraction results; nothing is re-extracted."""
         with self._lock:
-            return self._rebuild(self._extractions())
+            extractions = self._extractions()
+            assembled, reports = self._rebuild(extractions)
+            self._record_validation(extractions, reports)
+            return assembled
 
-    def _rebuild(self, extractions: list[DocumentExtraction]) -> AssembledGraph:
-        assembled = assemble_graph(sorted(extractions, key=lambda e: e.document_id))
+    def refresh_search_index(self, document_id: int) -> int:
+        """Re-index one document's search chunks from its cleaned layout text."""
+        with self._lock:
+            chunks = self.processor.chunk(self.layout(document_id))
+            self.vector.replace_document(document_id, chunks)
+            return len(chunks)
+
+    def layout(self, document_id: int) -> ParsedDocument:
+        """The cleaned, block-structured text of a stored document."""
+        path = self._layout_path(document_id)
+        if path.exists():
+            return ParsedDocument.model_validate_json(path.read_text(encoding="utf-8"))
+        document = self.registry.get(document_id)
+        return self.processor.parse(
+            Path(document.file_path), document.id, document.original_filename
+        )
+
+    def _rebuild(
+        self,
+        extractions: list[DocumentExtraction],
+        fresh: dict[int, ParsedDocument] | None = None,
+    ) -> tuple[AssembledGraph, dict[int, ValidationReport]]:
+        """Validate evidence, assemble the graph and synchronise Neo4j.
+
+        A document without any extracted fact has nothing to validate: its file is
+        not read again.
+        """
+        layouts: dict[int, ParsedDocument] = dict(fresh or {})
+        reports: dict[int, ValidationReport] = {}
+        working = []
+        for extraction in sorted(extractions, key=lambda e: e.document_id):
+            if extraction.facts:
+                document_id = extraction.document_id
+                if document_id not in layouts:
+                    layouts[document_id] = self.layout(document_id)
+                reports[document_id] = validate(extraction, layouts[document_id])
+                extraction = reports[document_id].extraction
+            working.append(extraction)
+
+        assembled = assemble_graph(working)
         conflicts, successions = detect_conflicts(assembled.observations)
         sync = self.repository.sync(assembled.as_dict())
         self._write_json(
@@ -191,11 +241,17 @@ class KnowledgeLab:
                 "observations": assembled.observations,
                 "merges": assembled.resolution.merges,
                 "duplicate_candidates": assembled.resolution.review,
+                "relationship_flags": assembled.flags,
+                "folded_relationships": assembled.folded,
                 "last_sync": sync.as_dict(),
             },
         )
         self._write_json(self.settings.exports_dir / "knowledge_graph.json", assembled.as_dict())
-        return assembled
+        for document_id, parsed in layouts.items():
+            self._write_json(self._layout_path(document_id), parsed.model_dump())
+        for document_id, report in reports.items():
+            self._write_json(self._validation_path(document_id), report.as_dict())
+        return assembled, reports
 
     def graph(self) -> dict[str, list[dict]]:
         """The persisted graph, read from Neo4j."""
@@ -210,9 +266,18 @@ class KnowledgeLab:
                 "observations": [],
                 "merges": [],
                 "duplicate_candidates": [],
+                "relationship_flags": [],
+                "folded_relationships": [],
                 "last_sync": {},
             }
         return json.loads(path.read_text(encoding="utf-8"))
+
+    def _record_validation(
+        self, extractions: list[DocumentExtraction], reports: dict[int, ValidationReport]
+    ) -> None:
+        for extraction in extractions:
+            if report := reports.get(extraction.document_id):
+                self.provenance.record_validation(extraction, report.as_dict()["verdicts"])
 
     # --------------------------------------------------------------- retrieval
     def engine(self) -> RetrievalEngine:
@@ -251,6 +316,12 @@ class KnowledgeLab:
     # ------------------------------------------------------------------ helpers
     def _extraction_path(self, document_id: int) -> Path:
         return self.settings.extractions_dir / f"{document_id}.json"
+
+    def _layout_path(self, document_id: int) -> Path:
+        return self.settings.layout_dir / f"{document_id}.json"
+
+    def _validation_path(self, document_id: int) -> Path:
+        return self.settings.validation_dir / f"{document_id}.json"
 
     def extraction(self, document_id: int) -> DocumentExtraction | None:
         path = self._extraction_path(document_id)

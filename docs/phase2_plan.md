@@ -1,6 +1,8 @@
 # Phase 2 plan: advanced extraction and GraphRAG evaluation
 
-Status: **proposed, awaiting approval**. No application code has been changed.
+Status: **paused**. On 2026-11-26 the model provider was changed from Groq to OpenAI;
+the Groq model, price and rate-limit details below are historical.
+When written, no application code had been changed.
 Inspected on 2026-11-25: codebase, tests, evaluation report, installed Semantica 0.7.0.
 Baseline: 90 unit tests pass; no Groq key is configured.
 

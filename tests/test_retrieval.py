@@ -117,7 +117,7 @@ def test_answer_generation_sends_only_the_evidence(monkeypatch, tmp_path) -> Non
 
     sent = {}
 
-    class FakeGroq:
+    class FakeProvider:
         def __init__(self, **kwargs) -> None:
             sent["model"] = kwargs["model"]
 
@@ -125,8 +125,8 @@ def test_answer_generation_sends_only_the_evidence(monkeypatch, tmp_path) -> Non
             sent["prompt"] = prompt
             return " A leads B [1]. "
 
-    monkeypatch.setattr("backend.retrieval.answer.Groq", FakeGroq)
-    configured = load_settings(data_dir=tmp_path, groq_api_key=SecretStr("test-key"))
+    monkeypatch.setattr("backend.retrieval.answer.MeteredOpenAIProvider", FakeProvider)
+    configured = load_settings(data_dir=tmp_path, openai_api_key=SecretStr("test-key"))
     assert generate_answer(configured, _result()) == "A leads B [1]."
     assert sent["prompt"] == build_prompt(_result())
     assert "[1] (a.txt) A LEADS B" in sent["prompt"]

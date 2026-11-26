@@ -154,3 +154,50 @@ FUNCTIONAL_RELATIONS: dict[str, tuple[str, str]] = {
     # relation -> (property name on the object, object types it applies to)
     "LEADS": ("lead", "Team"),
 }
+
+# --- Vocabulary for AI (LLM) extraction -------------------------------------
+# Kept separate so the offline regex pattern pack above is unaffected.  General
+# documents need ideas as nodes ("planning", "attention") and looser links.
+
+CONCEPT = "Concept"
+ALL_ENTITY_TYPES: tuple[str, ...] = (*ENTITY_TYPES, CONCEPT)
+
+
+def _llm_relation(name: str, description: str, symmetric: bool = False) -> RelationSpec:
+    return RelationSpec(
+        name,
+        description,
+        ALL_ENTITY_TYPES,
+        ALL_ENTITY_TYPES,
+        phrases=(),
+        symmetric=symmetric,
+        extension=True,
+    )
+
+
+LLM_ONLY_RELATIONS: tuple[RelationSpec, ...] = (
+    _llm_relation("IS_A", "The subject is a kind or example of the object."),
+    _llm_relation("ENABLES", "The subject provides or makes the object possible."),
+    _llm_relation("USED_FOR", "The subject is applied to the object."),
+    _llm_relation("EVALUATES", "The subject measures or benchmarks the object."),
+    _llm_relation("RELATED_TO", "A stated connection that fits no other type.", symmetric=True),
+)
+ALL_RELATION_BY_NAME: dict[str, RelationSpec] = {
+    **RELATION_BY_NAME,
+    **{spec.name: spec for spec in LLM_ONLY_RELATIONS},
+}
+
+# Allowed endpoint types for model-extracted relations.  Only relations that
+# imply a person or organisation are restricted; the rest accept any pair.
+LLM_ENDPOINTS: dict[str, tuple[tuple[str, ...], tuple[str, ...]]] = {
+    "WORKS_FOR": (("Person",), ("Organization", "Team")),
+    "LEADS": (("Person",), ("Team", "Project", "Organization")),
+    "DEVELOPED": (
+        ("Organization", "Team", "Person"),
+        ("Product", "Technology", CONCEPT, "Project"),
+    ),
+}
+
+
+def llm_endpoints(relation: str) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    return LLM_ENDPOINTS.get(relation, (ALL_ENTITY_TYPES, ALL_ENTITY_TYPES))

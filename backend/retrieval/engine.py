@@ -14,6 +14,10 @@ mode           what runs
                merge, ``hybrid_alpha=0.5``).  The control for "native" results.
 =============  =================================================================
 
+Relationships whose ``support_status`` is ``inferred`` (derived from document
+structure) are always labelled, ranked slightly lower and never make graph
+evidence sufficient on their own.
+
 Semantica 0.7.0 note: ``ContextRetriever`` cannot be pointed at a Neo4j
 ``GraphStore`` for natural-language questions (it passes the question to
 ``GraphStore.query`` as Cypher and the error is swallowed), so it receives the
@@ -51,6 +55,13 @@ SEMANTIC_SEEDS = 4
 
 _HOP_BONUS = {0: 0.15, 1: 0.06}
 _PATH_BONUS = 0.30
+_INFERRED_PENALTY = 0.05  # ranks a stated fact above an equally relevant inferred one
+INFERRED_LABEL = "INFERRED (from document structure, not confirmed)"
+ONLY_INFERRED_NOTE = (
+    "Only inferred relationships were found. They follow from document structure and "
+    "are not confirmed facts."
+)
+SOME_INFERRED_NOTE = "Facts labelled INFERRED are not confirmed."
 _YEAR_SCOPE = re.compile(r"\b(?:in|during|as of)\s+((?:19|20)\d{2})\b", re.IGNORECASE)
 _CONFLICT_INTENT = re.compile(r"conflict|contradict|disagree|inconsisten", re.IGNORECASE)
 _PROPER_NOUNS = re.compile(r"(?<!^)\b[A-Z][A-Za-z]+(?:\s+[A-Z][A-Za-z]+)*")
@@ -64,6 +75,10 @@ class _EmbeddingOnly:
 
     def embed(self, text: str):
         return self._index.embed(text)
+
+
+def _is_inferred(relationship: dict) -> bool:
+    return relationship.get("support_status") == "inferred"
 
 
 class RetrievalEngine:
@@ -186,8 +201,16 @@ class RetrievalEngine:
                 f" [valid {relationship.get('valid_from') or '…'} → "
                 f"{relationship.get('valid_until') or 'now'}]"
             )
-        quotes = " | ".join(dict.fromkeys(relationship.get("evidence_quotes", [])))
-        return f"{source} {relationship['type']} {target}{window} — “{quotes}”"
+        quotes = relationship.get("evidence_quotes", [])
+        support = relationship.get("evidence_support") or [None] * len(quotes)
+        if not _is_inferred(relationship):
+            quotes = [
+                f"{quote} (inferred)" if status == "inferred" else quote
+                for quote, status in zip(quotes, support)
+            ]
+        joined = " | ".join(dict.fromkeys(quotes))
+        label = f"{INFERRED_LABEL}: " if _is_inferred(relationship) else ""
+        return f"{label}{source} {relationship['type']} {target}{window} — “{joined}”"
 
     def _graph(
         self,
@@ -229,6 +252,8 @@ class RetrievalEngine:
             score = similarity + _HOP_BONUS.get(hop, 0.0)
             if relationship["id"] in on_path:
                 score += _PATH_BONUS
+            if _is_inferred(relationship):
+                score -= _INFERRED_PENALTY
             ranked.append((score, similarity, relationship))
         ranked.sort(key=lambda item: (-item[0], item[2]["id"]))
         selected = ranked[:max_facts]
@@ -240,10 +265,17 @@ class RetrievalEngine:
         used = {r["source"] for _, _, r in selected} | {r["target"] for _, _, r in selected}
         used |= set(named)
         sufficient, note = self._graph_sufficiency(
-            question, named, [s for _, s, _ in selected], bool(evidence)
+            question,
+            named,
+            [s for _, s, rel in selected if not _is_inferred(rel)],
+            bool(evidence),
         )
         if semantic and sufficient:
             note = "No known entity was named; traversal started from semantic matches."
+        if evidence and all(item.support == "inferred" for item in evidence):
+            sufficient, note = False, ONLY_INFERRED_NOTE
+        elif any(item.support == "inferred" for item in evidence):
+            note = f"{note} {SOME_INFERRED_NOTE}".strip()
         if as_of:
             note = f"{note} Facts filtered to those valid on {as_of}.".strip()
         return RetrievalResult(
@@ -292,6 +324,7 @@ class RetrievalEngine:
             filenames=list(relationship.get("source_documents", [])),
             location="; ".join(locations),
             reference=relationship["id"],
+            support="inferred" if _is_inferred(relationship) else "supported",
         )
 
     def _conflict_evidence(self, question: str, named: list[str]) -> list[Evidence]:
@@ -356,7 +389,8 @@ class RetrievalEngine:
         for index, rel_id in enumerate(path["relationship_ids"]):
             relationship = self.relationships[rel_id]
             forward = relationship["source"] == path["node_ids"][index]
-            arrow = f"-[{relationship['type']}]->" if forward else f"<-[{relationship['type']}]-"
+            kind = relationship["type"] + (" (inferred)" if _is_inferred(relationship) else "")
+            arrow = f"-[{kind}]->" if forward else f"<-[{kind}]-"
             parts += [arrow, self.entities[path["node_ids"][index + 1]]["name"]]
         return " ".join(parts)
 
@@ -374,6 +408,10 @@ class RetrievalEngine:
         named = self.link_entities(question)
         sufficient = graph.sufficient and (bool(named) or best_chunk >= VECTOR_SUFFICIENCY_THRESHOLD)
         note = graph.note
+        # Document text can answer even when the graph only holds inferred links.
+        if note.startswith(ONLY_INFERRED_NOTE) and best_chunk >= VECTOR_SUFFICIENCY_THRESHOLD:
+            sufficient = True
+            note = f"{note} The answer must rest on the document passages."
         if not sufficient and not note:
             note = f"Neither graph facts nor chunks (best {best_chunk:.2f}) are convincing."
         return graph.model_copy(
@@ -418,10 +456,20 @@ class RetrievalEngine:
             node_id = metadata.get("node_id")
             if node_id in self.entities:
                 entities[node_id] = self.entities[node_id]
+            # The native result does not know about evidence status; add it.
+            unconfirmed = [
+                self._sentence(self.relationships[r["id"]])
+                for r in related
+                if r.get("id") in self.relationships and _is_inferred(self.relationships[r["id"]])
+            ]
+            text = item.content
+            if unconfirmed:
+                text = f"{text}\n{INFERRED_LABEL}: {'; '.join(unconfirmed)}"
             evidence.append(
                 Evidence(
                     kind="context",
-                    text=item.content,
+                    support="inferred" if related and len(unconfirmed) == len(related) else None,
+                    text=text,
                     score=round(float(item.score), 4),
                     document_ids=sorted({d for r in related for d in r.get("document_ids", [])}),
                     filenames=sorted({d for r in related for d in r.get("source_documents", [])}),
@@ -436,6 +484,7 @@ class RetrievalEngine:
             entities=list(entities.values()),
             relationships=list(relationships.values()),
             evidence=evidence,
-            sufficient=bool(evidence),
-            note="ContextRetriever has no insufficiency signal; any result counts as sufficient.",
+            sufficient=any(item.support != "inferred" for item in evidence),
+            note="ContextRetriever has no insufficiency signal; any result counts as sufficient, "
+            "except results resting only on inferred relationships.",
         )

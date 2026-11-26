@@ -2,7 +2,7 @@
 # this project needs 3.11+.  requirements.lock.txt pins the full tree.
 
 # Semantica and the extras this lab uses
-semantica[graph-neo4j,vectorstore-faiss,parse-pdf,documents,shacl,llm-groq,graph-embeddings]==0.7.0
+semantica[graph-neo4j,vectorstore-faiss,parse-pdf,documents,shacl,llm-openai,graph-embeddings]==0.7.0
 
 # Local embeddings.  Deliberately not the "embeddings-local" extra: that also
 # installs PyTorch, which Semantica then imports at start-up although unused here.
@@ -27,5 +27,5 @@ python-docx==1.2.0
 beautifulsoup4==4.15.0
 pyshacl==0.40.2
 rdflib==7.6.0
-groq==1.7.0
+openai==3.60.0
 gensim==4.4.0

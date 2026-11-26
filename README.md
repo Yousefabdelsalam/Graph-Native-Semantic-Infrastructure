@@ -8,13 +8,14 @@ provenance, then compare vector search with graph-based retrieval on the same
 questions.
 
 Built against **Semantica 0.7.0**, Neo4j 5.26, FAISS, SQLite and Streamlit. Runs
-offline after the first model download; no paid API is needed.
+offline after the first model download with rule-based extraction; AI extraction
+with OpenAI is optional and paid.
 
 ## What to read
 
 | Document | Content |
 |---|---|
-| [docs/semantica_integration.md](docs/semantica_integration.md) | what is Semantica and what is ours, plus 18 surprises found along the way |
+| [docs/semantica_integration.md](docs/semantica_integration.md) | what is Semantica and what is ours, plus 22 surprises found along the way |
 | [docs/evaluation_results.md](docs/evaluation_results.md) | measured comparison and what it does and does not show |
 | [docs/architecture.md](docs/architecture.md) | diagram, processing flow, design decisions |
 | [docs/database_design.md](docs/database_design.md) | what each store owns |
@@ -149,27 +150,55 @@ docker compose down; docker compose up -d --wait neo4j
 |---|---|---|
 | `NEO4J_URI` / `NEO4J_USER` / `NEO4J_PASSWORD` | `bolt://localhost:7687` / `neo4j` / – | graph database |
 | `NEO4J_TEST_URI` | `bolt://localhost:7688` | database for integration tests |
-| `GROQ_API_KEY` | empty | enables LLM extraction and answers |
-| `GROQ_MODEL` | `llama-3.3-70b-versatile` | check that Groq still serves it |
+| `OPENAI_API_KEY` | empty | enables AI extraction and answers |
+| `OPENAI_MODEL` | `gpt-6-luna` | see OpenAI's [models](https://developers.openai.com/api/docs/models) and [deprecations](https://developers.openai.com/api/docs/deprecations) |
+| `OPENAI_REASONING_EFFORT` | `low` | `none` to `max`; higher uses more output tokens |
 | `EMBEDDING_MODEL` | `BAAI/bge-small-en-v1.5` | any FastEmbed model; delete `data\vector_index` after changing it |
 | `DATA_DIR` | `./data` | runtime state |
 | `MAX_UPLOAD_MB` | `10` | upload limit (also set in `.streamlit/config.toml`) |
 | `LOG_LEVEL` | `INFO` | application logging |
 
-### Optional: Groq
+### AI extraction with OpenAI
 
-Put `GROQ_API_KEY` in `.env` and restart. The Documents page then offers LLM
-extraction and the Query Playground can write an answer, shown apart from the
-evidence. Both send document text to Groq.
-`scripts\run_evaluation.py --generate` scores the generated answers.
+Use this for your own documents: the offline rules were written for the sample
+corpus and find few or no relationships in other material.
 
-> The Groq paths are covered only by tests with a stand-in client. They have **not**
-> been run against the real service.
+1. Create an API key in your OpenAI account and make sure it has credit.
+2. In `.env`, set `OPENAI_API_KEY=` followed by the key.
+3. Restart the app.
+4. On **Documents**, upload files with **AI extraction with OpenAI** selected, or
+   select an uploaded document, choose that method and click **Reprocess**.
+
+What it does differently:
+
+* sends the text in passages of up to about 1,800 characters, with PDF line breaks
+  re-joined, instead of sentence by sentence;
+* adds a **Concept** type and the relations `IS_A`, `ENABLES`, `USED_FOR`,
+  `EVALUATES` and `RELATED_TO`;
+* restricts the model to those types with a strict output schema, and rejects names
+  that do not appear in the text;
+* quotes the sentence naming both ends, or the stretch between them.
+
+Every extracted relationship is then checked against the document and marked
+**supported** (stated in one sentence or table row), **inferred** (follows from a
+section heading and its text; not a confirmed fact) or **rejected** (kept out of the
+graph). See [evidence statuses](docs/architecture.md#evidence-statuses).
+
+**The document text is sent to OpenAI and billed to your account.** Each passage
+costs up to two requests. If any request fails, the document is marked `failed` and
+its earlier facts are kept. Check the results: a model can state a relationship the
+text does not support.
+
+The Query Playground can also write an answer from the evidence (shown apart from
+it), and `scriptsun_evaluation.py --generate` scores answers on the sample corpus.
+
+> The OpenAI paths are covered by tests with a stand-in client. They have **not**
+> yet been run against the real service.
 
 ## Limitations
 
 **Extraction**
-* The default method is a rule-based pattern pack written for this domain. It does not
+* The offline method is a rule-based pattern pack written for the sample domain. It does not
   resolve pronouns, passive or nominal phrasings it has no rule for, lists of
   subjects, or people mentioned away from a recognised verb.
 * It produces false positives, for example the heading "Project Register" becomes a
@@ -184,8 +213,8 @@ evidence. Both send document text to Groq.
 * Validity dates are read only from `from … until …` / `since …` with ISO dates.
 
 **Retrieval**
-* Graph and hybrid ranking is a heuristic written here. It misses a four-hop question
-  in the evaluation.
+* Graph and hybrid ranking is a heuristic written here. Graph mode misses a three-hop
+  question in the evaluation.
 * "Insufficient evidence" thresholds were tuned on the same small question set.
 * Retrieval returns evidence; without an LLM no answer is composed.
 

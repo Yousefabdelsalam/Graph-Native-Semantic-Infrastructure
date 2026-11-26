@@ -3,7 +3,7 @@
     python scripts/run_evaluation.py [--generate]
 
 Requires the sample data to be loaded (scripts/load_sample_data.py).
-``--generate`` also scores Groq-generated answers (needs GROQ_API_KEY).
+``--generate`` also scores OpenAI-generated answers (needs OPENAI_API_KEY).
 """
 
 from __future__ import annotations
@@ -29,7 +29,7 @@ def main() -> int:
     settings = load_settings()
     configure_logging("ERROR")
     if arguments.generate and not settings.llm_available:
-        print("--generate needs GROQ_API_KEY", file=sys.stderr)
+        print("--generate needs OPENAI_API_KEY", file=sys.stderr)
         return 2
     lab = KnowledgeLab(settings)
     try:

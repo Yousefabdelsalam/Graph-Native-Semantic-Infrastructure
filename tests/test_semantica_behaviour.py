@@ -16,7 +16,7 @@ from semantica.parse import HTMLParser
 from semantica.semantic_extract import NERExtractor
 from semantica.vector_store import FAISSStore
 
-from backend.ontology.schema import ENTITY_TYPES
+from backend.ontology.schema import ALL_ENTITY_TYPES
 from backend.ontology.service import OntologyService
 
 
@@ -101,5 +101,5 @@ def test_owl_writer_detaches_plain_names_from_declared_classes() -> None:
 
 def test_owl_domains_and_ranges_refer_to_declared_classes() -> None:
     classes, referenced = _declared_and_referenced(OntologyService().owl())
-    assert len(classes) == len(ENTITY_TYPES)
+    assert len(classes) == len(ALL_ENTITY_TYPES)
     assert referenced and referenced <= classes

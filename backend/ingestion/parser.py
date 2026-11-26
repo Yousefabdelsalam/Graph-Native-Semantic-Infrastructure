@@ -4,7 +4,9 @@ Semantica does the work: ``FileIngestor`` (file intake), ``PDFParser`` /
 ``DOCXParser`` / ``HTMLParser`` / ``DocumentParser`` (text extraction),
 ``TextNormalizer`` and ``TextSplitter``.  The application adds one thing the
 library does not return: character offsets of pages/sections inside the
-normalised text, so every fact can point back to a location.
+normalised text, so every fact can point back to a location.  PDF text is read
+by :mod:`backend.ingestion.layout` (columns, tables, headers and footers);
+Semantica's ``PDFParser`` still supplies the document metadata.
 """
 
 from __future__ import annotations
@@ -19,7 +21,8 @@ from semantica.normalize import TextNormalizer
 from semantica.parse import DocumentParser, DOCXParser, HTMLParser, PDFParser
 from semantica.split import TextSplitter
 
-from backend.schemas import Chunk, ParsedDocument, Segment
+from backend.ingestion.layout import RawBlock, read_pdf
+from backend.schemas import Block, Chunk, ParsedDocument, Segment
 
 logger = logging.getLogger(__name__)
 
@@ -50,7 +53,7 @@ class DocumentProcessor:
             file_object = self._ingestor.ingest_file(path, read_content=False)
             extension = path.suffix.lower()
             if extension == ".pdf":
-                raw_segments, metadata, parser = self._parse_pdf(path)
+                return self._parse_pdf(path, document_id, filename, file_object)
             elif extension == ".docx":
                 raw_segments, metadata, parser = self._parse_docx(path)
             elif extension in (".html", ".htm"):
@@ -91,13 +94,65 @@ class DocumentProcessor:
         lines = (self._normalizer.normalize_text(line).strip() for line in text.splitlines())
         return "\n".join(line for line in lines if line)
 
-    def _parse_pdf(self, path: Path) -> tuple[list[tuple[str, str]], dict[str, str], str]:
-        result = self._pdf.parse(path, extract_tables=False)
-        segments = [
-            (f"page {page.get('page_number', index + 1)}", page.get("text") or "")
-            for index, page in enumerate(result["pages"])
-        ]
-        return segments, _clean_metadata(result.get("metadata")), "semantica.parse.PDFParser"
+    def _parse_pdf(
+        self, path: Path, document_id: int, filename: str, file_object: Any
+    ) -> ParsedDocument:
+        """One segment per page, built from layout blocks without headers / footers."""
+        metadata = _clean_metadata(
+            self._pdf.parse(path, extract_text=False, extract_tables=False).get("metadata")
+        )
+        text, segments, blocks = self._assemble(read_pdf(path))
+        if not segments:
+            raise DocumentParsingError(
+                f"'{filename}' contains no extractable text (scanned PDFs need OCR)."
+            )
+        metadata["size_bytes"] = str(getattr(file_object, "size", path.stat().st_size))
+        return ParsedDocument(
+            document_id=document_id,
+            filename=filename,
+            file_type="pdf",
+            text=text,
+            segments=segments,
+            metadata=metadata,
+            parser="pdfplumber layout reader (app); metadata: semantica.parse.PDFParser",
+            blocks=blocks,
+        )
+
+    def _assemble(self, raw: list[RawBlock]) -> tuple[str, list[Segment], list[Block]]:
+        """Normalise each block and place it in the document text.
+
+        Blocks are separated by a blank line, so a sentence can never run from
+        one block into the next.
+        """
+        text = ""
+        blocks: list[Block] = []
+        segments: dict[str, Segment] = {}
+        position: dict[int, int] = {}  # index in ``raw`` -> index in ``blocks``
+        for index, item in enumerate(raw):
+            cleaned = " ".join(self.normalize(item.text).split())
+            if not cleaned:
+                continue
+            label = f"page {item.page}"
+            start = end = None
+            if item.kind != "furniture":
+                start = len(text) + (len(_SEPARATOR) if text else 0)
+                end = start + len(cleaned)
+                text += (_SEPARATOR if text else "") + cleaned
+                segment = segments.setdefault(label, Segment(label=label, start=start, end=end))
+                segment.end = end
+            position[index] = len(blocks)
+            blocks.append(
+                Block(
+                    segment=label,
+                    kind=item.kind,
+                    text=cleaned,
+                    start=start,
+                    end=end,
+                    level=item.level,
+                    path=[position[i] for i in item.path if i in position],
+                )
+            )
+        return text, list(segments.values()), blocks
 
     def _parse_docx(self, path: Path) -> tuple[list[tuple[str, str]], dict[str, str], str]:
         result = self._docx.parse(path)

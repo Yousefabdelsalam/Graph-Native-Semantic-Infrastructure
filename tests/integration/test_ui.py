@@ -19,7 +19,7 @@ def app_environment(repository, neo4j_settings, tmp_path, monkeypatch):
     """Point the app at the test database and an empty temporary data directory."""
     monkeypatch.setenv("NEO4J_URI", neo4j_settings.neo4j_uri)
     monkeypatch.setenv("DATA_DIR", str(tmp_path))
-    monkeypatch.setenv("GROQ_API_KEY", "")
+    monkeypatch.setenv("OPENAI_API_KEY", "")
     st.cache_resource.clear()
     yield repository
     st.cache_resource.clear()

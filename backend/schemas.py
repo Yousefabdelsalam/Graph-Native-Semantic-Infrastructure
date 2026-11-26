@@ -18,6 +18,22 @@ class Segment(BaseModel):
     end: int
 
 
+class Block(BaseModel):
+    """A heading, paragraph, table row or running header / footer.
+
+    ``start`` / ``end`` are offsets into ``ParsedDocument.text``; they are empty
+    for furniture, which is not part of the text.
+    """
+
+    segment: str  # label of the page or section holding the block
+    kind: str  # "title" | "heading" | "text" | "table" | "furniture"
+    text: str
+    start: int | None = None
+    end: int | None = None
+    level: int = 0  # headings: 1 = section, 2 = subsection
+    path: list[int] = Field(default_factory=list)  # indices of enclosing headings
+
+
 class ParsedDocument(BaseModel):
     document_id: int
     filename: str
@@ -26,6 +42,7 @@ class ParsedDocument(BaseModel):
     segments: list[Segment]
     metadata: dict[str, str] = Field(default_factory=dict)
     parser: str
+    blocks: list[Block] = Field(default_factory=list)  # empty for non-PDF files
 
 
 class Chunk(BaseModel):
@@ -69,6 +86,9 @@ class Fact(BaseModel):
     extracted_at: str
     valid_from: str | None = None
     valid_until: str | None = None
+    # Set by evidence validation on a working copy; never part of the raw result.
+    support: str | None = None  # "supported" | "inferred"
+    support_reason: str | None = None
 
 
 class DocumentExtraction(BaseModel):
@@ -95,6 +115,7 @@ class Evidence(BaseModel):
     filenames: list[str] = Field(default_factory=list)
     location: str | None = None
     reference: str
+    support: str | None = None  # graph facts: "supported" | "inferred"
 
 
 class RetrievalResult(BaseModel):

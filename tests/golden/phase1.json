@@ -1,0 +1,501 @@
+{
+ "checksums": {
+  "01_company_overview.txt": "b5492cfb9d57e7f7fe4721095d758dd7e1af249404beffbbd3e5ed947734b56d",
+  "02_product_catalogue.pdf": "bcccf1648f64638cd91321a0d6f864579a26243e18ec5bd7f120bb559e8217eb",
+  "03_technology_stack.docx": "926c76f547535008a1f84b056f021d27e24ed7408bd69f5ae03e78526fa2af87",
+  "04_project_register.html": "554a5e1284f69f24ddd837a25a1517d757815cd89e369e1a7031e6d9b3213c20",
+  "05_integrations.txt": "9bf59965f72edfc4e5a38a9c944f02fb91b47ab97ad9960972ccff1aae4fae4a",
+  "06_legacy_wiki.txt": "2366945d502bdf69256e3386b40c8d207ec80c15fe516bcb11c183a3cc9fb444",
+  "evaluation_questions.json": "fc82bbbda7d40f124bf01eead8f6ff33f65d290e79eb87f4f5676d5b654e3e27",
+  "gold_facts.json": "5777f4defd8bb466f53a77c211013bc3a5d51f634a56710e235a2fdbfd1fee0d",
+  "paraphrase_probe.json": "7681f810b436b5b4dac44ea4ecc39280fec0d07d3504767b1809ca1da5bc7524"
+ },
+ "conflicts": [
+  "product:visioncore|launch_year|2023/2024",
+  "product:visioncore|primary_database|MongoDB/PostgreSQL",
+  "team:visioncore-team|lead|David Okafor/Sarah Chen"
+ ],
+ "entities": [
+  "event:applied-vision-summit",
+  "organization:acme-ai",
+  "organization:northwind-robotics",
+  "person:david-okafor",
+  "person:elena-rossi",
+  "person:marcus-webb",
+  "person:priya-raman",
+  "person:sarah-chen",
+  "person:tom-nguyen",
+  "product:documind",
+  "product:fleetsense",
+  "product:visioncore",
+  "project:project-atlas",
+  "project:project-beacon",
+  "project:project-cobalt",
+  "project:project-register",
+  "team:document-intelligence-team",
+  "team:platform-team",
+  "team:visioncore-team",
+  "technology:fastapi",
+  "technology:kafka",
+  "technology:kubernetes",
+  "technology:mongodb",
+  "technology:onnx-runtime",
+  "technology:postgresql",
+  "technology:pytorch",
+  "technology:redis"
+ ],
+ "extraction_scores": {
+  "paraphrase": {
+   "pattern": {
+    "correct": 0,
+    "f1": 0.0,
+    "gold": 15,
+    "precision": null,
+    "predicted": 0,
+    "recall": 0.0
+   },
+   "regex": {
+    "correct": 4,
+    "f1": 0.421,
+    "gold": 15,
+    "precision": 1.0,
+    "predicted": 4,
+    "recall": 0.267
+   }
+  },
+  "sample": {
+   "pattern": {
+    "correct": 0,
+    "f1": 0.0,
+    "gold": 49,
+    "precision": null,
+    "predicted": 0,
+    "recall": 0.0
+   },
+   "regex": {
+    "correct": 48,
+    "f1": 0.99,
+    "gold": 49,
+    "precision": 1.0,
+    "predicted": 48,
+    "recall": 0.98
+   }
+  }
+ },
+ "facts": [
+  "01_company_overview.txt|David Okafor|WORKS_FOR|Acme AI",
+  "01_company_overview.txt|Document Intelligence Team|PART_OF|Acme AI",
+  "01_company_overview.txt|Dr. Sarah Chen|LEADS|VisionCore Team",
+  "01_company_overview.txt|Elena Rossi|LEADS|Document Intelligence Team",
+  "01_company_overview.txt|Elena Rossi|WORKS_FOR|Acme AI",
+  "01_company_overview.txt|Marcus Webb|WORKS_FOR|Acme AI",
+  "01_company_overview.txt|Platform Team|PART_OF|Acme AI",
+  "01_company_overview.txt|Priya Raman|WORKS_FOR|Acme AI",
+  "01_company_overview.txt|Sarah Chen|WORKS_FOR|Acme AI",
+  "01_company_overview.txt|Sarah|COLLABORATES_WITH|Tom Nguyen",
+  "01_company_overview.txt|Tom Nguyen|PART_OF|VisionCore Team",
+  "01_company_overview.txt|Tom Nguyen|WORKS_FOR|Acme AI",
+  "01_company_overview.txt|VisionCore Team|PART_OF|Acme AI",
+  "02_product_catalogue.pdf|Acme AI|DEVELOPED|DocuMind",
+  "02_product_catalogue.pdf|Acme AI|DEVELOPED|FleetSense",
+  "02_product_catalogue.pdf|Acme AI|DEVELOPED|VisionCore",
+  "02_product_catalogue.pdf|DocuMind|USES|FastAPI",
+  "02_product_catalogue.pdf|DocuMind|launch_year|2022",
+  "02_product_catalogue.pdf|Document Intelligence Team|OWNS|DocuMind",
+  "02_product_catalogue.pdf|FleetSense|USES|Kafka",
+  "02_product_catalogue.pdf|Platform Team|OWNS|FleetSense",
+  "02_product_catalogue.pdf|VisionCore Team|OWNS|VisionCore",
+  "02_product_catalogue.pdf|VisionCore|USES|ONNX Runtime",
+  "02_product_catalogue.pdf|VisionCore|USES|PyTorch",
+  "02_product_catalogue.pdf|VisionCore|launch_year|2023",
+  "03_technology_stack.docx|DocuMind|DEPENDS_ON|Postgres",
+  "03_technology_stack.docx|FleetSense|DEPENDS_ON|Kafka",
+  "03_technology_stack.docx|FleetSense|DEPENDS_ON|Redis",
+  "03_technology_stack.docx|Marcus Webb|LEADS|Platform Team",
+  "03_technology_stack.docx|Platform Team|USES|Kubernetes",
+  "03_technology_stack.docx|Priya Raman|LEADS|Platform Team",
+  "03_technology_stack.docx|VisionCore|DEPENDS_ON|PostgreSQL",
+  "03_technology_stack.docx|VisionCore|DEPENDS_ON|Redis",
+  "03_technology_stack.docx|VisionCore|primary_database|PostgreSQL",
+  "04_project_register.html|Document Intelligence Team|OWNS|Project Beacon",
+  "04_project_register.html|Platform Team|OWNS|Project Cobalt",
+  "04_project_register.html|Priya Raman|COLLABORATES_WITH|Sarah Chen",
+  "04_project_register.html|Project Atlas|USES|PostgreSQL",
+  "04_project_register.html|Project Beacon|USES|Redis",
+  "04_project_register.html|Project Cobalt|DEPENDS_ON|PostgreSQL",
+  "04_project_register.html|Project Cobalt|USES|Kubernetes",
+  "04_project_register.html|Sarah Chen|LEADS|Project Atlas",
+  "04_project_register.html|VisionCore Team|OWNS|Project Atlas",
+  "05_integrations.txt|Acme Artificial Intelligence|COLLABORATES_WITH|Northwind Robotics Inc.",
+  "05_integrations.txt|DocuMind|DEPENDS_ON|VisionCore",
+  "05_integrations.txt|FleetSense|INTEGRATES_WITH|VisionCore",
+  "05_integrations.txt|Northwind Robotics Inc.|USES|FleetSense",
+  "05_integrations.txt|Project Atlas|DEPENDS_ON|VisionCore",
+  "05_integrations.txt|Sarah Chen|COLLABORATES_WITH|David Okafor",
+  "06_legacy_wiki.txt|Acme AI Inc.|DEVELOPED|VisionCore",
+  "06_legacy_wiki.txt|David Okafor|LEADS|VisionCore Team",
+  "06_legacy_wiki.txt|VisionCore|launch_year|2024",
+  "06_legacy_wiki.txt|VisionCore|primary_database|MongoDB"
+ ],
+ "merges": [
+  "Acme AI|Acme AI/Acme AI Inc./Acme Artificial Intelligence",
+  "PostgreSQL|PostgreSQL/Postgres",
+  "Sarah Chen|Dr. Sarah Chen/Sarah Chen",
+  "Sarah Chen|Sarah"
+ ],
+ "pattern_fingerprint": "cd1aaa2f2ade1bb32e8df2284e66da6d787281b6a301a67e21c48d94b51b8d18",
+ "relationships": [
+  "organization:acme-ai|COLLABORATES_WITH|organization:northwind-robotics",
+  "organization:acme-ai|DEVELOPED|product:documind",
+  "organization:acme-ai|DEVELOPED|product:fleetsense",
+  "organization:acme-ai|DEVELOPED|product:visioncore",
+  "organization:northwind-robotics|USES|product:fleetsense",
+  "person:david-okafor|LEADS|team:visioncore-team",
+  "person:david-okafor|WORKS_FOR|organization:acme-ai",
+  "person:elena-rossi|LEADS|team:document-intelligence-team",
+  "person:elena-rossi|WORKS_FOR|organization:acme-ai",
+  "person:marcus-webb|LEADS|team:platform-team",
+  "person:marcus-webb|WORKS_FOR|organization:acme-ai",
+  "person:priya-raman|COLLABORATES_WITH|person:sarah-chen",
+  "person:priya-raman|LEADS|team:platform-team",
+  "person:priya-raman|WORKS_FOR|organization:acme-ai",
+  "person:sarah-chen|COLLABORATES_WITH|person:david-okafor",
+  "person:sarah-chen|COLLABORATES_WITH|person:tom-nguyen",
+  "person:sarah-chen|LEADS|project:project-atlas",
+  "person:sarah-chen|LEADS|team:visioncore-team",
+  "person:sarah-chen|WORKS_FOR|organization:acme-ai",
+  "person:tom-nguyen|PART_OF|team:visioncore-team",
+  "person:tom-nguyen|WORKS_FOR|organization:acme-ai",
+  "product:documind|DEPENDS_ON|product:visioncore",
+  "product:documind|DEPENDS_ON|technology:postgresql",
+  "product:documind|USES|technology:fastapi",
+  "product:fleetsense|DEPENDS_ON|technology:kafka",
+  "product:fleetsense|DEPENDS_ON|technology:redis",
+  "product:fleetsense|INTEGRATES_WITH|product:visioncore",
+  "product:fleetsense|USES|technology:kafka",
+  "product:visioncore|DEPENDS_ON|technology:postgresql",
+  "product:visioncore|DEPENDS_ON|technology:redis",
+  "product:visioncore|USES|technology:onnx-runtime",
+  "product:visioncore|USES|technology:pytorch",
+  "project:project-atlas|DEPENDS_ON|product:visioncore",
+  "project:project-atlas|USES|technology:postgresql",
+  "project:project-beacon|USES|technology:redis",
+  "project:project-cobalt|DEPENDS_ON|technology:postgresql",
+  "project:project-cobalt|USES|technology:kubernetes",
+  "team:document-intelligence-team|OWNS|product:documind",
+  "team:document-intelligence-team|OWNS|project:project-beacon",
+  "team:document-intelligence-team|PART_OF|organization:acme-ai",
+  "team:platform-team|OWNS|product:fleetsense",
+  "team:platform-team|OWNS|project:project-cobalt",
+  "team:platform-team|PART_OF|organization:acme-ai",
+  "team:platform-team|USES|technology:kubernetes",
+  "team:visioncore-team|OWNS|product:visioncore",
+  "team:visioncore-team|OWNS|project:project-atlas",
+  "team:visioncore-team|PART_OF|organization:acme-ai"
+ ],
+ "retrieval": {
+  "q01:graph": [
+   true,
+   true,
+   1.0
+  ],
+  "q01:hybrid": [
+   true,
+   true,
+   1.0
+  ],
+  "q01:semantica": [
+   true,
+   true,
+   1.0
+  ],
+  "q01:vector": [
+   true,
+   true,
+   1.0
+  ],
+  "q02:graph": [
+   true,
+   true,
+   1.0
+  ],
+  "q02:hybrid": [
+   true,
+   true,
+   1.0
+  ],
+  "q02:semantica": [
+   true,
+   true,
+   1.0
+  ],
+  "q02:vector": [
+   true,
+   true,
+   1.0
+  ],
+  "q03:graph": [
+   true,
+   true,
+   1.0
+  ],
+  "q03:hybrid": [
+   true,
+   true,
+   1.0
+  ],
+  "q03:semantica": [
+   true,
+   true,
+   1.0
+  ],
+  "q03:vector": [
+   true,
+   true,
+   1.0
+  ],
+  "q04:graph": [
+   true,
+   true,
+   1.0
+  ],
+  "q04:hybrid": [
+   true,
+   true,
+   1.0
+  ],
+  "q04:semantica": [
+   true,
+   true,
+   1.0
+  ],
+  "q04:vector": [
+   true,
+   true,
+   1.0
+  ],
+  "q05:graph": [
+   true,
+   true,
+   1.0
+  ],
+  "q05:hybrid": [
+   true,
+   true,
+   1.0
+  ],
+  "q05:semantica": [
+   true,
+   true,
+   1.0
+  ],
+  "q05:vector": [
+   false,
+   false,
+   1.0
+  ],
+  "q06:graph": [
+   false,
+   false,
+   1.0
+  ],
+  "q06:hybrid": [
+   false,
+   false,
+   1.0
+  ],
+  "q06:semantica": [
+   true,
+   true,
+   1.0
+  ],
+  "q06:vector": [
+   true,
+   true,
+   1.0
+  ],
+  "q07:graph": [
+   true,
+   true,
+   1.0
+  ],
+  "q07:hybrid": [
+   true,
+   true,
+   1.0
+  ],
+  "q07:semantica": [
+   true,
+   true,
+   1.0
+  ],
+  "q07:vector": [
+   true,
+   true,
+   1.0
+  ],
+  "q08:graph": [
+   true,
+   true,
+   1.0
+  ],
+  "q08:hybrid": [
+   true,
+   true,
+   1.0
+  ],
+  "q08:semantica": [
+   true,
+   true,
+   1.0
+  ],
+  "q08:vector": [
+   true,
+   true,
+   1.0
+  ],
+  "q09:graph": [
+   true,
+   true,
+   1.0
+  ],
+  "q09:hybrid": [
+   true,
+   true,
+   1.0
+  ],
+  "q09:semantica": [
+   true,
+   true,
+   1.0
+  ],
+  "q09:vector": [
+   true,
+   true,
+   1.0
+  ],
+  "q10:graph": [
+   true,
+   true,
+   1.0
+  ],
+  "q10:hybrid": [
+   true,
+   true,
+   1.0
+  ],
+  "q10:semantica": [
+   true,
+   true,
+   1.0
+  ],
+  "q10:vector": [
+   true,
+   true,
+   1.0
+  ],
+  "q11:graph": [
+   false,
+   true,
+   0.0
+  ],
+  "q11:hybrid": [
+   true,
+   true,
+   1.0
+  ],
+  "q11:semantica": [
+   true,
+   true,
+   1.0
+  ],
+  "q11:vector": [
+   true,
+   true,
+   1.0
+  ],
+  "q12:graph": [
+   true,
+   true,
+   1.0
+  ],
+  "q12:hybrid": [
+   true,
+   true,
+   1.0
+  ],
+  "q12:semantica": [
+   true,
+   true,
+   1.0
+  ],
+  "q12:vector": [
+   true,
+   true,
+   1.0
+  ],
+  "q13:graph": [
+   true,
+   true,
+   1.0
+  ],
+  "q13:hybrid": [
+   true,
+   true,
+   1.0
+  ],
+  "q13:semantica": [
+   true,
+   true,
+   1.0
+  ],
+  "q13:vector": [
+   true,
+   true,
+   1.0
+  ],
+  "q14:graph": [
+   true,
+   true,
+   1.0
+  ],
+  "q14:hybrid": [
+   false,
+   true,
+   1.0
+  ],
+  "q14:semantica": [
+   false,
+   true,
+   1.0
+  ],
+  "q14:vector": [
+   false,
+   true,
+   1.0
+  ],
+  "q15:graph": [
+   true,
+   false,
+   null
+  ],
+  "q15:hybrid": [
+   true,
+   false,
+   null
+  ],
+  "q15:semantica": [
+   false,
+   true,
+   null
+  ],
+  "q15:vector": [
+   true,
+   false,
+   null
+  ]
+ },
+ "successions": [
+  "team:platform-team|lead"
+ ]
+}

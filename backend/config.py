@@ -21,8 +21,10 @@ class Settings(BaseModel):
     neo4j_password: SecretStr = SecretStr("")
     neo4j_database: str = "neo4j"
 
-    groq_api_key: SecretStr = SecretStr("")
-    groq_model: str = "llama-3.3-70b-versatile"
+    openai_api_key: SecretStr = SecretStr("")
+    openai_model: str = "gpt-6-luna"
+    # none | low | medium | high | xhigh | max; higher costs more output tokens.
+    openai_reasoning_effort: str = "low"
 
     embedding_model: str = "BAAI/bge-small-en-v1.5"
     data_dir: Path = PROJECT_ROOT / "data"
@@ -55,6 +57,15 @@ class Settings(BaseModel):
         return self.exports_dir / "extractions"
 
     @property
+    def layout_dir(self) -> Path:
+        """Cleaned, block-structured text; kept apart from the raw artifacts."""
+        return self.exports_dir / "layout"
+
+    @property
+    def validation_dir(self) -> Path:
+        return self.exports_dir / "validation"
+
+    @property
     def metadata_db(self) -> Path:
         return self.data_dir / "app_metadata.db"
 
@@ -72,7 +83,7 @@ class Settings(BaseModel):
 
     @property
     def llm_available(self) -> bool:
-        return bool(self.groq_api_key.get_secret_value())
+        return bool(self.openai_api_key.get_secret_value())
 
     def ensure_directories(self) -> None:
         for directory in (
@@ -89,8 +100,9 @@ _ENV_MAP = {
     "neo4j_user": "NEO4J_USER",
     "neo4j_password": "NEO4J_PASSWORD",
     "neo4j_database": "NEO4J_DATABASE",
-    "groq_api_key": "GROQ_API_KEY",
-    "groq_model": "GROQ_MODEL",
+    "openai_api_key": "OPENAI_API_KEY",
+    "openai_model": "OPENAI_MODEL",
+    "openai_reasoning_effort": "OPENAI_REASONING_EFFORT",
     "embedding_model": "EMBEDDING_MODEL",
     "data_dir": "DATA_DIR",
     "max_upload_mb": "MAX_UPLOAD_MB",
@@ -114,7 +126,7 @@ def configure_logging(level: str = "INFO") -> None:
         level=level.upper(),
         format="%(asctime)s %(levelname)-7s %(name)s | %(message)s",
     )
-    for noisy in ("neo4j", "httpx", "urllib3", "fastembed", "pdfminer"):
+    for noisy in ("neo4j", "httpx", "httpx2", "openai", "urllib3", "fastembed", "pdfminer"):
         logging.getLogger(noisy).setLevel(logging.ERROR)
     # Semantica logs every internal step at INFO.
     logging.getLogger("semantica").setLevel(logging.WARNING)

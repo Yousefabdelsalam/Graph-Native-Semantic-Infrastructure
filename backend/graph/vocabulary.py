@@ -12,6 +12,9 @@ from __future__ import annotations
 ALIASES: dict[str, str] = {
     "postgres": "PostgreSQL",
     "acme artificial intelligence": "Acme AI",
+    # The agent pattern "ReAct" (Reason + Act) and the names documents give it.
+    "react framework": "ReAct",
+    "react loop": "ReAct",
 }
 
 LEGAL_SUFFIXES: tuple[str, ...] = ("inc.", "inc", "corp.", "corp", "ltd.", "ltd", "llc")

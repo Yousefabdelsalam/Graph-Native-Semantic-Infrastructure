@@ -100,10 +100,15 @@ class DecisionService:
                 continue
             for fact_id in relationship.get("provenance_ids", []):
                 entry = self._provenance.get(fact_id) or {}
+                caveat = (
+                    " (inferred, not confirmed)"
+                    if relationship.get("support_status") == "inferred"
+                    else ""
+                )
                 facts.append(
                     {
                         "statement": f"{names[relationship['source']]} {relationship['type']} "
-                        f"{names[relationship['target']]}",
+                        f"{names[relationship['target']]}{caveat}",
                         "fact_id": fact_id,
                         "document": entry.get("source_document"),
                         "location": entry.get("source_location"),

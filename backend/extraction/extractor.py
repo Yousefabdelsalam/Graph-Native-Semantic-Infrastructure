@@ -2,20 +2,23 @@
 
 Division of labour
 ------------------
-Semantica:    ``NERExtractor``, ``RelationExtractor``, ``TripletExtractor`` and
-              ``EventDetector`` do all matching / model calls.
-Application:  supplies the domain patterns, runs extraction sentence by sentence
-              (for exact provenance), resolves overlapping spans, enforces the
-              ontology's domain/range, and records what was discarded and why.
+Semantica:    ``NERExtractor``, ``RelationExtractor``, ``extract_entities_llm`` /
+              ``extract_relations_llm``, ``TripletExtractor`` and ``EventDetector``
+              do all matching / model calls.
+Application:  supplies the domain patterns, chooses the text unit (a sentence for
+              rules; a passage with re-joined PDF lines for the model), locates the
+              supporting statement, enforces the ontology's domain/range, and
+              records what was discarded and why.
 """
 
 from __future__ import annotations
 
 import hashlib
 import logging
+import re
 from collections import Counter
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, Callable
 
 from semantica.semantic_extract import (
     EventDetector,
@@ -23,6 +26,7 @@ from semantica.semantic_extract import (
     RelationExtractor,
     TripletExtractor,
 )
+from semantica.semantic_extract.methods import extract_entities_llm, extract_relations_llm
 
 from backend.config import Settings
 from backend.extraction.patterns import (
@@ -32,9 +36,16 @@ from backend.extraction.patterns import (
     relation_patterns,
     temporal_bounds,
 )
-from backend.extraction.sentences import split_sentences
+from backend.extraction.sentences import split_sentences, unwrap_lines
 from backend.ingestion.parser import location_of
-from backend.ontology.schema import ATTRIBUTES, ENTITY_TYPES, RELATION_BY_NAME
+from backend.llm.provider import register as register_llm_provider
+from backend.ontology.schema import (
+    ALL_ENTITY_TYPES,
+    ALL_RELATION_BY_NAME,
+    ATTRIBUTES,
+    RELATION_BY_NAME,
+    llm_endpoints,
+)
 from backend.schemas import DocumentExtraction, Fact, Mention, ParsedDocument
 
 logger = logging.getLogger(__name__)
@@ -42,8 +53,16 @@ logger = logging.getLogger(__name__)
 EXTRACTION_METHODS: dict[str, str] = {
     "regex": "Semantica 'regex' method + domain pattern pack (default, offline)",
     "pattern": "Semantica built-in 'pattern' method, unmodified (offline baseline)",
-    "llm": "Semantica 'llm' method with the Groq provider (needs GROQ_API_KEY)",
+    "llm": "AI extraction with OpenAI through Semantica (needs OPENAI_API_KEY)",
 }
+
+# The thresholds Semantica's extractor classes apply by default.
+MIN_ENTITY_CONFIDENCE = 0.5
+MIN_RELATION_CONFIDENCE = 0.6
+# Size of the passage sent to the model, and the longest quote stored as evidence
+# when two names never share a sentence.
+PASSAGE_CHARS = 1800
+MAX_EVIDENCE_CHARS = 500
 
 _ATTRIBUTE_NAMES = {spec.name: spec for spec in ATTRIBUTES}
 _LABEL_MAP = {
@@ -56,6 +75,7 @@ _LABEL_MAP = {
     "TEAM": "Team",
     "PROJECT": "Project",
     "EVENT": "Event",
+    "CONCEPT": "Concept",
     "YEAR": "Year",
 }
 _TYPE_PRIORITY = {name: index for index, name in enumerate([*ENTITY_PATTERNS, "Year"])}
@@ -76,17 +96,22 @@ class ExtractionPipeline:
         if method not in EXTRACTION_METHODS:
             raise ExtractionError(f"Unknown extraction method '{method}'.")
         if method == "llm" and not settings.llm_available:
-            raise ExtractionError("LLM extraction needs GROQ_API_KEY in the environment or .env.")
+            raise ExtractionError("AI extraction needs OPENAI_API_KEY in the environment or .env.")
         self.method = method
-        options: dict[str, Any] = {}
+        self._llm_options: dict[str, Any] = {}
         if method == "llm":
-            options = {
-                "provider": "groq",
-                "llm_model": settings.groq_model,
-                "api_key": settings.groq_api_key.get_secret_value(),
+            # Semantica's NERExtractor / RelationExtractor catch provider errors and
+            # fall back to other methods, so the LLM functions are called directly.
+            self._llm_options = {
+                "provider": register_llm_provider(),
+                "model": settings.openai_model,
+                "api_key": settings.openai_api_key.get_secret_value(),
+                "reasoning_effort": settings.openai_reasoning_effort,
+                "silent_fail": False,
             }
-        self._ner = NERExtractor(method=method, **options)
-        self._relations = RelationExtractor(method=method, **options)
+        else:
+            self._ner = NERExtractor(method=method)
+            self._relations = RelationExtractor(method=method)
         self._triplets = TripletExtractor(method="pattern")
         self._events = EventDetector(method="pattern")
 
@@ -119,8 +144,13 @@ class ExtractionPipeline:
                 continue
             relations = self._extract_relations(sentence, entities, discarded)
             for relation, predicate, subject, obj in relations:
+                if self.method == "llm":
+                    quote, low, high = locate_evidence(sentence, subject["text"], obj["text"])
+                    span = (quote, start + low, start + high)
+                else:
+                    span = (sentence, start, end)
                 fact = self._to_fact(
-                    document, relation, predicate, subject, obj, sentence, start, end, extracted_at
+                    document, relation, predicate, subject, obj, *span, extracted_at
                 )
                 facts.setdefault(fact.fact_id, fact)
             if relations:
@@ -143,17 +173,56 @@ class ExtractionPipeline:
 
     # ----------------------------------------------------------------- helpers
     def _units(self, document: ParsedDocument) -> list[tuple[int, int, str]]:
-        """Sentences for local methods; the LLM also works per sentence for provenance."""
-        return split_sentences(document.text)
+        """Sentences for the rule methods; passages for the model.
 
-    def _extract_entities(self, sentence: str, discarded: Counter[str]) -> list[dict]:
+        Offsets always refer to ``document.text``.
+        """
+        if self.method != "llm":
+            return split_sentences(document.text)
+        return passages(document)
+
+    def _raw_entities(self, sentence: str) -> list[Any]:
+        if self.method == "llm":
+            found = self._call_llm(
+                extract_entities_llm, sentence, entity_types=list(ALL_ENTITY_TYPES)
+            )
+            return [e for e in found if (e.confidence or 0.0) >= MIN_ENTITY_CONFIDENCE]
         options: dict[str, Any] = {}
         if self.method == "regex":
             options["patterns"] = {**ENTITY_PATTERNS, **attribute_value_entities_patterns()}
+        return self._ner.extract_entities(sentence, **options)
+
+    def _raw_relations(self, sentence: str, entities: list[dict], raw: list[Any]) -> list[Any]:
         if self.method == "llm":
-            options["entity_types"] = list(ENTITY_TYPES)
+            found = self._call_llm(
+                extract_relations_llm,
+                sentence,
+                raw,
+                relation_types=[*ALL_RELATION_BY_NAME, *_ATTRIBUTE_NAMES],
+            )
+            return [r for r in found if (r.confidence or 0.0) >= MIN_RELATION_CONFIDENCE]
+        options: dict[str, Any] = {}
+        if self.method == "regex":
+            texts = [entity["text"] for entity in entities]
+            options["patterns"] = {**relation_patterns(texts), **attribute_patterns(texts)}
+        return self._relations.extract_relations(sentence, raw, **options)
+
+    def _call_llm(self, function: Callable[..., list], *args: Any, **options: Any) -> list:
+        """Run a Semantica LLM extraction; any failure aborts the whole document.
+
+        Partial results are never returned: ingesting them would remove the
+        document's earlier facts from the graph.
+        """
+        try:
+            return function(*args, **self._llm_options, **options)
+        except Exception as exc:
+            key = self._llm_options["api_key"]
+            reason = str(exc).replace(key, "***")[:300]
+            raise ExtractionError(f"LLM extraction failed: {reason}") from exc
+
+    def _extract_entities(self, sentence: str, discarded: Counter[str]) -> list[dict]:
         candidates: list[dict] = []
-        for entity in self._ner.extract_entities(sentence, **options):
+        for entity in self._raw_entities(sentence):
             if self._is_library_fallback(entity.metadata):
                 discarded["Semantica fallback entity (requested method found nothing)"] += 1
                 continue
@@ -162,15 +231,19 @@ class ExtractionPipeline:
                 discarded[f"entity label {entity.label}"] += 1
                 continue
             start, end = entity.start_char, entity.end_char
-            if sentence[start:end] != entity.text:  # LLM offsets are not guaranteed
-                start = sentence.find(entity.text)
-                end = start + len(entity.text)
-                if start < 0:
+            text = entity.text
+            if sentence[start:end] != text:  # the model returns no usable offsets
+                found = find_name(sentence, text)
+                if found is None:
                     discarded["entity not found in text"] += 1
                     continue
+                start, end = found
+                if self.method == "llm":
+                    text = sentence[start:end]  # use the document's own spelling
+                    entity.text = text
             candidates.append(
                 {
-                    "text": entity.text,
+                    "text": text,
                     "label": label,
                     "start": start,
                     "end": end,
@@ -178,6 +251,13 @@ class ExtractionPipeline:
                     "raw": entity,
                 }
             )
+        if self.method == "llm":
+            # Nested names ("agent" inside "AI agent") are distinct entities here;
+            # only repeats of the same name are dropped.
+            unique: dict[str, dict] = {}
+            for candidate in candidates:
+                unique.setdefault(candidate["text"].lower(), candidate)
+            return sorted(unique.values(), key=lambda c: c["start"])
         kept = resolve_overlaps(candidates)
         if overlapping := len(candidates) - len(kept):
             discarded["overlapping entity span"] += overlapping
@@ -192,16 +272,9 @@ class ExtractionPipeline:
             raw.start_char, raw.end_char = entity["start"], entity["end"]
             raw_entities.append(raw)
 
-        options: dict[str, Any] = {}
-        if self.method == "regex":
-            texts = [entity["text"] for entity in entities]
-            options["patterns"] = {**relation_patterns(texts), **attribute_patterns(texts)}
-        if self.method == "llm":
-            options["relation_types"] = [*RELATION_BY_NAME, *_ATTRIBUTE_NAMES]
-
         by_text = {entity["text"].lower(): entity for entity in entities}
         accepted: list[tuple[Any, str, dict, dict]] = []
-        for relation in self._relations.extract_relations(sentence, raw_entities, **options):
+        for relation in self._raw_relations(sentence, entities, raw_entities):
             if self._is_library_fallback(relation.metadata):
                 discarded["Semantica fallback relation (requested method found nothing)"] += 1
                 continue
@@ -209,7 +282,8 @@ class ExtractionPipeline:
             name = predicate.upper().replace(" ", "_")
             if predicate.lower() in _ATTRIBUTE_NAMES:
                 name = predicate.lower()
-            if name not in RELATION_BY_NAME and name not in _ATTRIBUTE_NAMES:
+            known = ALL_RELATION_BY_NAME if self.method == "llm" else RELATION_BY_NAME
+            if name not in known and name not in _ATTRIBUTE_NAMES:
                 # e.g. Semantica's generic fallback: founded_by, related_to
                 discarded[f"predicate outside ontology: {predicate}"] += 1
                 continue
@@ -218,7 +292,7 @@ class ExtractionPipeline:
             if subject is None or obj is None or subject is obj:
                 discarded["relation endpoint not extracted"] += 1
                 continue
-            if not _types_allowed(name, subject["label"], obj["label"]):
+            if not _types_allowed(name, subject["label"], obj["label"], self.method):
                 discarded[f"domain/range violation: {name}"] += 1
                 continue
             accepted.append((relation, name, subject, obj))
@@ -303,8 +377,65 @@ def resolve_overlaps(candidates: list[dict]) -> list[dict]:
     return sorted(kept, key=lambda c: c["start"])
 
 
-def _types_allowed(predicate: str, subject_type: str, object_type: str) -> bool:
+def _types_allowed(predicate: str, subject_type: str, object_type: str, method: str) -> bool:
     if predicate in _ATTRIBUTE_NAMES:
         return subject_type in _ATTRIBUTE_NAMES[predicate].subject_types
-    spec = RELATION_BY_NAME[predicate]
-    return subject_type in spec.domain and object_type in spec.range
+    if method == "llm":
+        domain, allowed = llm_endpoints(predicate)
+    else:
+        spec = RELATION_BY_NAME[predicate]
+        domain, allowed = spec.domain, spec.range
+    return subject_type in domain and object_type in allowed
+
+
+def passages(document: ParsedDocument, size: int = PASSAGE_CHARS) -> list[tuple[int, int, str]]:
+    """Whole sentences of one page or section, grouped up to ``size`` characters."""
+    result: list[tuple[int, int, str]] = []
+    for segment in document.segments:
+        body = unwrap_lines(document.text[segment.start : segment.end])
+        current: list[tuple[int, int]] = []
+
+        def flush() -> None:
+            if current:
+                low, high = current[0][0], current[-1][1]
+                result.append((segment.start + low, segment.start + high, body[low:high]))
+                current.clear()
+
+        for low, high, _ in split_sentences(body):
+            if current and high - current[0][0] > size:
+                flush()
+            current.append((low, high))
+        flush()
+    return result
+
+
+def find_name(text: str, name: str) -> tuple[int, int] | None:
+    """First whole-word occurrence of ``name``, ignoring case and line breaks."""
+    words = [re.escape(word) for word in name.split()]
+    if not words:
+        return None
+    pattern = r"(?<!\w)" + r"\s+".join(words) + r"(?!\w)"
+    match = re.search(pattern, text, re.IGNORECASE)
+    return match.span() if match else None
+
+
+def locate_evidence(passage: str, subject: str, obj: str) -> tuple[str, int, int]:
+    """The statement supporting a model-extracted relation: ``(quote, start, end)``.
+
+    Prefers one sentence naming both ends.  Otherwise the stretch from the first
+    name to the other (marked by "…" when it has to be shortened).
+    """
+    sentences = split_sentences(passage)
+    for low, high, sentence in sentences:
+        if find_name(sentence, subject) and find_name(sentence, obj):
+            return " ".join(sentence.split()), low, high
+    spans = [span for span in (find_name(passage, subject), find_name(passage, obj)) if span]
+    first = min(span[0] for span in spans)
+    last = max(span[1] for span in spans)
+    low = next((s for s, e, _ in sentences if s <= first < e), first)
+    high = next((e for s, e, _ in sentences if s < last <= e), last)
+    quote = " ".join(passage[low:high].split())
+    if len(quote) > MAX_EVIDENCE_CHARS:
+        half = MAX_EVIDENCE_CHARS // 2
+        quote = f"{quote[:half]} … {quote[-half:]}"
+    return quote, low, high

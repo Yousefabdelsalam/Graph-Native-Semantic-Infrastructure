@@ -196,7 +196,7 @@ def run_evaluation(lab: KnowledgeLab, *, generate: bool = False) -> dict:
         "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "semantica_version": semantica.__version__,
         "embedding_model": lab.settings.embedding_model,
-        "llm_model": lab.settings.groq_model if generate else None,
+        "llm_model": lab.settings.openai_model if generate else None,
         "warning": corpus_mismatch(lab),
         "corpus": {
             "chunks": lab.vector.count(),

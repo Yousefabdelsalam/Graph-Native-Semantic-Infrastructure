@@ -2,6 +2,7 @@
 
 Inferred facts are returned for display only.  They are never written to the
 graph, so extracted (sourced) knowledge and derived knowledge stay distinct.
+Relationships whose evidence status is ``inferred`` are not used as premises.
 """
 
 from __future__ import annotations
@@ -30,7 +31,7 @@ RULES: tuple[tuple[str, str], ...] = (
 
 
 def infer(graph: dict[str, list[dict]], rules: tuple[tuple[str, str], ...] = RULES) -> list[dict]:
-    """Forward-chain the rules over the graph's relationships."""
+    """Forward-chain the rules over the directly supported relationships."""
     names = {entity["id"]: entity["name"] for entity in graph["entities"]}
     reasoner = Reasoner()
     labels: dict[str, str] = {}
@@ -38,6 +39,8 @@ def infer(graph: dict[str, list[dict]], rules: tuple[tuple[str, str], ...] = RUL
         added = reasoner.add_rule(rule)
         labels[added.rule_id] = label
     for relationship in graph["relationships"]:
+        if relationship.get("support_status") == "inferred":
+            continue
         reasoner.add_fact(
             f"{relationship['type']}({names[relationship['source']]}, "
             f"{names[relationship['target']]})"

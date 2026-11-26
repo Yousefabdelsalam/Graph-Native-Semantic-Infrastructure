@@ -24,7 +24,7 @@ if warning := corpus_mismatch(lab):
 generate = st.checkbox(
     "Also generate and score LLM answers",
     disabled=not lab.settings.llm_available,
-    help="Needs GROQ_API_KEY.",
+    help="Needs OPENAI_API_KEY.",
 )
 if st.button("Run evaluation", type="primary", disabled=not lab.registry.list_documents()):
     with st.spinner("Running all questions in all modes…"):

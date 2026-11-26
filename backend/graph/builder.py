@@ -9,6 +9,12 @@ and "Project Cobalt".  Resolution happens beforehand in
 The application contributes the aggregation step: one edge per
 (subject, predicate, object), carrying the evidence from every document that
 states it, so nothing is overwritten.
+
+Every edge has a ``support_status``: ``supported`` when at least one piece of
+evidence states it directly, otherwise ``inferred``.  Rejected facts never reach
+this module (see :mod:`backend.extraction.validation`).  Facts extracted by a
+model must have been validated; the rule methods only produce facts from a single
+sentence naming both ends.
 """
 
 from __future__ import annotations
@@ -18,8 +24,9 @@ from dataclasses import dataclass, field
 
 from semantica.kg import GraphBuilder
 
+from backend.extraction.validation import INFERRED, SUPPORTED, relationship_flags
 from backend.graph.resolution import EntityResolution, ResolvedEntities
-from backend.ontology.schema import ATTRIBUTES, FUNCTIONAL_RELATIONS, RELATION_BY_NAME
+from backend.ontology.schema import ALL_RELATION_BY_NAME, ATTRIBUTES, FUNCTIONAL_RELATIONS
 from backend.schemas import DocumentExtraction, Fact
 
 
@@ -30,6 +37,8 @@ class AssembledGraph:
     observations: list[dict]  # single-valued claims, input to conflict detection
     resolution: ResolvedEntities
     unresolved_facts: list[str] = field(default_factory=list)
+    flags: list[dict] = field(default_factory=list)  # reversed duplicates, conflicts
+    folded: list[dict] = field(default_factory=list)  # vague links merged into specific ones
 
     def as_dict(self) -> dict:
         """The ``{"entities", "relationships"}`` shape Semantica modules consume."""
@@ -72,7 +81,8 @@ def assemble_graph(
                 continue
             _add_evidence(edges, extraction, fact, subject_id, object_id)
 
-            if fact.predicate in FUNCTIONAL_RELATIONS:
+            # Only directly stated facts may take part in conflict detection.
+            if fact.predicate in FUNCTIONAL_RELATIONS and _support(fact) == SUPPORTED:
                 property_name, object_type = FUNCTIONAL_RELATIONS[fact.predicate]
                 if fact.object_type == object_type:
                     observations.append(
@@ -88,7 +98,15 @@ def assemble_graph(
 
     entities = [dict(entity) for entity in resolved.entities.values()]
     _attach_attributes(entities, observations)
+    folded = _fold_vague_edges(edges)
     relationships = [_finalise_edge(edge) for _, edge in sorted(edges.items(), key=_edge_order)]
+    flags = relationship_flags(
+        [(r["id"], r["source"], r["type"], r["target"]) for r in relationships]
+    )
+    by_relationship = {r["id"]: r for r in relationships}
+    for flag in flags:
+        for identifier in flag["ids"]:
+            by_relationship[identifier].setdefault("review_flags", []).append(flag["detail"])
     built = GraphBuilder(merge_entities=False, resolve_conflicts=False).build(
         {"entities": entities, "relationships": relationships}
     )
@@ -98,7 +116,53 @@ def assemble_graph(
         observations=observations,
         resolution=resolved,
         unresolved_facts=unresolved,
+        flags=flags,
+        folded=folded,
     )
+
+
+def _support(fact: Fact) -> str:
+    if fact.support:
+        return fact.support
+    if fact.method == "llm":
+        raise ValueError(
+            f"Model-extracted fact {fact.fact_id} has not been validated against the document."
+        )
+    return SUPPORTED
+
+
+def _fold_vague_edges(edges: dict) -> list[dict]:
+    """Merge RELATED_TO into a specific link between the same two entities.
+
+    Only when the specific link is at least as well supported, so that a directly
+    stated "related to" never disappears behind an inferred claim.
+    """
+    folded: list[dict] = []
+    for key in sorted((k for k in edges if k[1] == "RELATED_TO"), key=str):
+        ends = {key[0], key[2]}
+        vague = edges[key]
+        for other_key, other in sorted(edges.items(), key=lambda item: str(item[0])):
+            if other_key[1] == "RELATED_TO" or {other_key[0], other_key[2]} != ends:
+                continue
+            if _edge_status(other) == INFERRED and _edge_status(vague) == SUPPORTED:
+                continue
+            for evidence in vague["evidence"]:
+                other["evidence"].append({**evidence, "folded": True})
+                folded.append(
+                    {
+                        "fact_id": evidence["fact_id"],
+                        "from": [key[0], "RELATED_TO", key[2]],
+                        "into": [other_key[0], other_key[1], other_key[2]],
+                    }
+                )
+            del edges[key]
+            break
+    return folded
+
+
+def _edge_status(edge: dict) -> str:
+    own = [e for e in edge["evidence"] if not e.get("folded")]
+    return SUPPORTED if any(e["support"] == SUPPORTED for e in own) else INFERRED
 
 
 def _edge_order(item: tuple) -> tuple[str, str, str, str]:
@@ -109,7 +173,7 @@ def _edge_order(item: tuple) -> tuple[str, str, str, str]:
 def _add_evidence(
     edges: dict, extraction: DocumentExtraction, fact: Fact, subject_id: str, object_id: str
 ) -> None:
-    spec = RELATION_BY_NAME[fact.predicate]
+    spec = ALL_RELATION_BY_NAME[fact.predicate]
     key = (subject_id, fact.predicate, object_id, fact.valid_from)
     reverse = (object_id, fact.predicate, subject_id, fact.valid_from)
     if spec.symmetric and reverse in edges:
@@ -130,13 +194,16 @@ def _add_evidence(
             "extracted_at": fact.extracted_at,
             "valid_from": fact.valid_from,
             "valid_until": fact.valid_until,
+            "support": _support(fact),
         }
     )
 
 
 def _finalise_edge(edge: dict) -> dict:
     """Flatten evidence into parallel lists (Neo4j properties must be primitives)."""
-    evidence = edge.pop("evidence")
+    status = _edge_status(edge)
+    # Directly stated evidence first.
+    evidence = sorted(edge.pop("evidence"), key=lambda e: e["support"] != SUPPORTED)
     valid_from = next((e["valid_from"] for e in evidence if e["valid_from"]), None)
     valid_until = next((e["valid_until"] for e in evidence if e["valid_until"]), None)
     return {
@@ -149,6 +216,8 @@ def _finalise_edge(edge: dict) -> dict:
         "evidence_documents": [e["document"] for e in evidence],
         "evidence_locations": [e["location"] for e in evidence],
         "evidence_quotes": [e["quote"] for e in evidence],
+        "evidence_support": [e["support"] for e in evidence],
+        "support_status": status,
         "extraction_method": evidence[0]["method"],
         "extracted_at": max(e["extracted_at"] for e in evidence),
         "valid_from": valid_from,

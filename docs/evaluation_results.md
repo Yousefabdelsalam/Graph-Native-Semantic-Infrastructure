@@ -134,7 +134,7 @@ Facts missed by `regex`:
 | Mode | Failed | Why |
 |---|---|---|
 | vector | q05, q14 | q05: refused although the evidence held the answer (similarity under threshold). q14: also returned the 2025 lead |
-| graph | q06, q11 | q06: refused although the evidence held the answer. q11: the fourth-hop fact ranked below the 12-fact cut |
+| graph | q06, q11 | q06: refused although the evidence held the answer. q11: the third-hop fact ranked below the 12-fact cut |
 | hybrid | q06, q14 | inherits graph's refusal and the chunks' lack of time awareness |
 | semantica | q14, q15 | no time filtering; never says "I don't know" |
 

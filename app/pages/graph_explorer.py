@@ -8,7 +8,7 @@ from app.components.common import entity_label, get_lab, require_graph, table
 from backend.graph.analytics import analyse
 from backend.graph.reasoning import RULES, infer, point_in_time
 from backend.graph.visualize import export_html, neighbourhood, network_figure
-from backend.ontology.schema import ENTITY_TYPES
+from backend.ontology.schema import ALL_ENTITY_TYPES
 from backend.ontology.service import OntologyService
 
 lab = get_lab()
@@ -51,7 +51,7 @@ with explore:
         " &nbsp; ".join(
             f"<span style='color:{colour}'>●</span> {kind}"
             for kind, colour in sorted(colours.items())
-            if kind in ENTITY_TYPES
+            if kind in ALL_ENTITY_TYPES
         ),
         unsafe_allow_html=True,
     )

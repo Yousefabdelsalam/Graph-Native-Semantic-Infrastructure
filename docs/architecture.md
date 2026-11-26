@@ -41,7 +41,7 @@ flowchart TD
     Q3 --> Q2
     Q4 --> FAISS
     Q4 --> NEO
-    query --> A[Optional Groq answer<br/>kept separate from evidence]
+    query --> A[Optional OpenAI answer<br/>kept separate from evidence]
     query --> SQL
 
     classDef sem fill:#dbeafe,stroke:#2563eb,color:#0f172a
@@ -51,10 +51,13 @@ flowchart TD
 
 1. **Register.** Validate type and size; hash the bytes. A hash that was already
    processed is skipped; a hash that previously failed is retried.
-2. **Parse** with Semantica and record page / section offsets.
-3. **Extract** sentence by sentence, so each fact has an exact quote and span.
-4. **Rebuild the graph** from all per-document extraction artifacts: resolve entities,
-   aggregate evidence per edge, detect conflicts.
+2. **Parse** and record page / section offsets. PDFs are read by the app's layout
+   reader (columns, tables, headings, running headers and footers); other formats
+   through Semantica.
+3. **Extract** sentence by sentence (rules) or passage by passage (model).
+4. **Rebuild the graph** from all per-document extraction artifacts: validate each
+   fact against the document, resolve entities, aggregate evidence per edge, detect
+   conflicts.
 5. **Synchronise Neo4j** (create, update, delete only what changed). This runs first
    because it is the step most likely to fail; if it does, the other stores are not
    touched and the document is marked `failed`.
@@ -71,6 +74,32 @@ flowchart TD
 | Disable `GraphBuilder` merging | its fuzzy default produced false merges | resolution policy is application code |
 | Never auto-resolve conflicts | the requirement is to surface them | disputed attributes have no single scalar value |
 | One orchestrator, no service layers or queues | local single-user lab | ingestion blocks the UI; no concurrent writers |
+
+## Evidence statuses
+
+Every extracted relationship is judged by fixed rules
+([validation.py](../backend/extraction/validation.py)); no model is involved.
+
+| Status | Rule | In the graph |
+|---|---|---|
+| `supported` | both names in one sentence of body text, or one table row | yes |
+| `inferred` | a name in a section heading and the other in that section's text, or a subsection linked to its section (`PART_OF`, `IS_A`, `RELATED_TO`) | yes, labelled; **not a confirmed fact** |
+| `rejected` | anything else, including links resting on headers, footers or a title | no; provenance entry invalidated with the reason |
+
+* Edges carry `support_status` and, per piece of evidence, `evidence_support`.
+* Retrieval labels inferred facts, ranks them slightly lower and never lets them make
+  graph evidence sufficient on their own; the answer prompt forbids stating them as
+  facts. Rule reasoning and conflict detection use supported facts only.
+* "Supported" means *named together*. The rules do not judge verbs or negation.
+* The raw extraction results are never rewritten. The cleaned text is saved in
+  `data/exports/layout/`, the verdicts in `data/exports/validation/`.
+
+To apply the current rules to already extracted documents, without re-extracting
+(back up `data/` and record checksums first; see the script's help):
+
+```
+python scripts/rebuild_validated_graph.py --backup "<backup folder>"
+```
 
 The cross-store write is **not atomic**. A crash between step 5 and step 6 leaves Neo4j
 ahead of the other stores; reprocessing the document repairs it.

@@ -16,28 +16,43 @@ from rdflib.namespace import SH
 from semantica.export import RDFExporter
 from semantica.ontology import OntologyEngine
 
-from backend.ontology.schema import ENTITY_TYPES, RELATIONS
+from backend.ontology.schema import (
+    ALL_ENTITY_TYPES,
+    ALL_RELATION_BY_NAME,
+    RELATION_BY_NAME,
+    llm_endpoints,
+)
 
 # RDFExporter writes types and predicates in this namespace; using it for the
 # ontology makes the generated shapes target the exported data directly.
 NAMESPACE = "https://semantica.dev/ns#"
 
 
+def endpoints(relation: str) -> tuple[list[str], list[str]]:
+    """Types allowed by either extraction vocabulary, rule types listed first."""
+    spec = RELATION_BY_NAME.get(relation)
+    domain, allowed = llm_endpoints(relation)
+    return (
+        list(dict.fromkeys([*(spec.domain if spec else ()), *domain])),
+        list(dict.fromkeys([*(spec.range if spec else ()), *allowed])),
+    )
+
+
 def domain_ontology() -> dict:
     classes = [
         {"name": name, "uri": f"{NAMESPACE}{name}", "description": f"{name} in the Acme domain"}
-        for name in ENTITY_TYPES
+        for name in ALL_ENTITY_TYPES
     ]
     properties = [
         {
             "name": spec.name,
             "uri": f"{NAMESPACE}{spec.name}",
             "type": "object",
-            "domain": list(spec.domain),
-            "range": list(spec.range),
+            "domain": endpoints(spec.name)[0],
+            "range": endpoints(spec.name)[1],
             "description": spec.description,
         }
-        for spec in RELATIONS
+        for spec in ALL_RELATION_BY_NAME.values()
     ]
     # RDFExporter emits entity names as semantica:text.
     properties.append(
@@ -45,7 +60,7 @@ def domain_ontology() -> dict:
             "name": "text",
             "uri": f"{NAMESPACE}text",
             "type": "data",
-            "domain": list(ENTITY_TYPES),
+            "domain": list(ALL_ENTITY_TYPES),
             "range": "string",
             "required": True,
         }
@@ -112,7 +127,11 @@ def with_union_ranges(shapes_turtle: str) -> str:
     """Replace single ``sh:class`` constraints with ``sh:or`` over all declared ranges."""
     shapes = Graph().parse(data=shapes_turtle, format="turtle")
     namespace = Namespace(NAMESPACE)
-    ranges = {namespace[s.name]: [namespace[r] for r in s.range] for s in RELATIONS if len(s.range) > 1}
+    ranges = {
+        namespace[name]: [namespace[r] for r in endpoints(name)[1]]
+        for name in ALL_RELATION_BY_NAME
+        if len(endpoints(name)[1]) > 1
+    }
     for property_shape, path in list(shapes.subject_objects(SH.path)):
         if not isinstance(path, URIRef) or path not in ranges:
             continue

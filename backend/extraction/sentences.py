@@ -41,3 +41,26 @@ def _append(out: list[tuple[int, int, str]], text: str, start: int, end: int) ->
         end -= 1
     if end > start:
         out.append((start, end, text[start:end]))
+
+
+def unwrap_lines(text: str, long_line: int = 50) -> str:
+    """Join lines broken by page layout, without moving any character offsets.
+
+    PDF text wraps mid-sentence.  A line break becomes a space when the line does
+    not end a sentence and either looks full or is continued in lower case; short
+    lines such as headings stay separate.  The result has the same length.
+    """
+    characters = list(text)
+    start = 0
+    while (end := text.find("\n", start)) != -1:
+        line = text[start:end].rstrip()
+        following = text[end + 1 : end + 2]
+        if (
+            line
+            and following not in ("", "\n")
+            and not line.endswith((".", "!", "?", ":"))
+            and (len(line) >= long_line or following.islower())
+        ):
+            characters[end] = " "
+        start = end + 1
+    return "".join(characters)
